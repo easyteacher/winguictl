@@ -507,10 +507,10 @@ def _handle_control(args) -> int:
             items = Win32Driver.combo_items(hwnd)
             _emit_action(True, "combo_items", {"items": items})
         case "combo-selected-index":
-            index = Win32Driver.combo_get_selected_index(hwnd)
+            index = Win32Driver.combo_selected_index(hwnd)
             _emit_action(True, "combo_selected_index", {"index": index})
         case "combo-selected-text":
-            text = Win32Driver.combo_get_selected_text(hwnd)
+            text = Win32Driver.combo_selected_text(hwnd)
             _emit_action(True, "combo_selected_text", {"text": text})
         case "listbox-select":
             Win32Driver.listbox_select(hwnd, args.item)

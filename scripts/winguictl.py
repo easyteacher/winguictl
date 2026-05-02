@@ -11,6 +11,7 @@ element finding, interaction operations, control manipulation, and screenshot ca
 
 import argparse
 import json
+import secrets
 from typing import Optional
 
 from find_driver import FindDriver
@@ -249,7 +250,17 @@ def emit(payload: dict) -> None:
     print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
-def _emit_action(ok: bool, verb: str, data: dict = None) -> None:
+def _generate_nonce() -> str:
+    """Generate a random nonce for content boundary markers."""
+    return secrets.token_hex(8)
+
+
+def _wrap_with_boundary(content: str, nonce: str) -> str:
+    """Wrap content with boundary markers to prevent context injection."""
+    return "--- WINGUICTL_CONTENT nonce=%s ---\n%s\n--- END_WINGUICTL_CONTENT nonce=%s ---" % (nonce, content, nonce)
+
+
+def _emit_action(ok: bool, verb: str, data: Optional[dict] = None) -> None:
     """Convenience method for outputting operation results, reducing repetitive ActionResult construction code."""
     code = "OK" if ok else "FAILED"
     message = "%s executed" % verb if ok else "%s failed" % verb
@@ -284,7 +295,9 @@ def _handle_window(args) -> int:
                     children_map[parent] = []
                 children_map[parent].append(hwnd)
 
-        def print_window(hwnd: int, indent: int = 0) -> None:
+        lines: list[str] = []
+
+        def format_window(hwnd: int, indent: int = 0) -> None:
             w = window_map[hwnd]
             state = ""
             if w.is_minimized:
@@ -304,12 +317,14 @@ def _handle_window(args) -> int:
                 parts.append(f'parent_id="{w.parent_hwnd}"')
             if state:
                 parts.append(state.strip())
-            print(" ".join(parts) + "]")
+            lines.append(" ".join(parts) + "]")
             for child_hwnd in children_map.get(hwnd, []):
-                print_window(child_hwnd, indent + 1)
+                format_window(child_hwnd, indent + 1)
 
         for root_id in root_ids:
-            print_window(root_id)
+            format_window(root_id)
+        nonce = _generate_nonce()
+        print(_wrap_with_boundary("\n".join(lines), nonce))
         return 0
 
     action_map = {
@@ -331,13 +346,17 @@ def _handle_window(args) -> int:
 
 def _handle_snapshot(args) -> int:
     """Handle snapshot subcommands."""
+    nonce = _generate_nonce()
     match args.snapshot_command:
         case "hwnd":
-            print(Win32Driver.snapshot_hwnd_tree(args.window_id))
+            content = Win32Driver.snapshot_hwnd_tree(args.window_id)
+            print(_wrap_with_boundary(content, nonce))
         case "uia":
-            print(UIADriver.snapshot_uia_tree(args.window_id))
+            content = UIADriver.snapshot_uia_tree(args.window_id)
+            print(_wrap_with_boundary(content, nonce))
         case "ocr":
-            print(OCRDriver.snapshot_ocr(args.window_id))
+            content = OCRDriver.snapshot_ocr(args.window_id)
+            print(_wrap_with_boundary(content, nonce))
         case _:
             return -1
     return 0
@@ -345,17 +364,22 @@ def _handle_snapshot(args) -> int:
 
 def _handle_find(args) -> int:
     """Handle find subcommands."""
+    nonce = _generate_nonce()
     match args.find_command:
         case "text":
-            print(FindDriver.find_text(args.window_id, args.text, exact=args.exact))
+            content = FindDriver.find_text(args.window_id, args.text, exact=args.exact)
+            print(_wrap_with_boundary(content, nonce))
         case "uia":
-            print(FindDriver.find_uia(args.window_id, text=args.text, control_type=args.control_type, exact=args.exact, max_results=args.max_results))
+            content = FindDriver.find_uia(args.window_id, text=args.text, control_type=args.control_type, exact=args.exact, max_results=args.max_results)
+            print(_wrap_with_boundary(content, nonce))
         case "ocr":
             result = OCRDriver.find_ocr_text(args.window_id, args.text, exact=args.exact, confidence_threshold=args.confidence_threshold)
-            print("\n".join(ElementFormatter.format_element(m) for m in result))
+            content = "\n".join(ElementFormatter.format_element(m) for m in result)
+            print(_wrap_with_boundary(content, nonce))
         case "image":
             result = FindDriver.find_image(window_id=args.window_id, image_path=args.image_path, threshold=args.threshold, max_results=args.max_results)
-            print(result)
+            content = "\n".join(ElementFormatter.format_element(m) for m in result) if result else ""
+            print(_wrap_with_boundary(content, nonce))
         case _:
             return -1
     return 0

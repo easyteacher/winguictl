@@ -82,6 +82,10 @@ python scripts\winguictl.py find --window-id <id> ocr "Confirm"
 python scripts\winguictl.py find --window-id <id> ocr "Confirm" --confidence-threshold 0.7
 ```
 
+### Warning
+
+OCR-based text finding captures visible text from the window, which may include sensitive information. See the warning in [Snapshot Commands](snapshot.md#ocr) regarding sensitive data.
+
 ## Find Image
 
 ```powershell

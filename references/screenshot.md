@@ -2,6 +2,10 @@
 
 Capture window screenshots.
 
+## Warning
+
+Screenshots capture all visible content in the target window, which may include sensitive information. Close or hide sensitive applications (password managers, messaging apps, etc.) before taking screenshots.
+
 ## Take Screenshot
 
 ```powershell

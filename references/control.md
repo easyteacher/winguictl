@@ -2,6 +2,11 @@
 
 Directly control specific controls, including Win32 controls and UIA elements.
 
+## Note
+
+### Re-obtain the snapshot after each action operation
+Action operations may change the UI state (such as window content, element status, or layout), so the previous snapshot may no longer be accurate. Always use `snapshot hwnd` or `snapshot uia` to get the latest UI state before performing subsequent operations.
+
 ## Win32 Control Operations
 
 Operate on controls via their HWND handles. Use `snapshot hwnd` to obtain the control's `hwnd`.

@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# SPDX-FileCopyrightText: Fushan Wen <qydwhotmail@gmail.com>
+# SPDX-License-Identifier: MIT
+
+"""Window management driver module.
+
+Provides window enumeration, focus control, state operations (minimize/maximize/restore/close),
+position movement, size adjustment, and screenshot capabilities.
+Underlying implementation uses pywinauto's HwndWrapper for window operations.
+"""
+
+import os
+from pathlib import Path
+from typing import Optional, Tuple
+
+import win32api
+import win32con
+import win32gui
+import win32process
+from pywinauto import Desktop
+from pywinauto.controls.hwndwrapper import HwndWrapper
+from pywinauto.win32_element_info import HwndElementInfo
+
+from models import Bounds, WindowInfo
+from win32_utils import Win32API
+
+IMMUNE_CLASS_NAMES = frozenset({"IME", "Default IME", "MSCTFIME UI"})
+
+
+class WindowsDriver:
+
+    @staticmethod
+    def _wrap(window_id: str) -> HwndWrapper:
+        """Wrap a window handle string as an HwndWrapper instance."""
+        hwnd = int(window_id)
+        return HwndWrapper(HwndElementInfo(hwnd))
+
+    @staticmethod
+    def _window_action(window_id: str, action_name: str, **kwargs) -> bool:
+        """Generic method for executing window operations.
+
+        Centralizes the pattern of _wrap + calling wrapper method + exception handling,
+        avoiding duplicate try/except boilerplate in each window operation method.
+
+        Args:
+            window_id: Window handle string
+            action_name: Method name on HwndWrapper
+            **kwargs: Parameters to pass to the method
+
+        Returns:
+            Whether the operation succeeded
+        """
+        try:
+            wrapper = WindowsDriver._wrap(window_id)
+            getattr(wrapper, action_name)(**kwargs)
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def _get_process_name(pid: int) -> Optional[str]:
+        """Get process name by process ID."""
+        try:
+            process_handle = win32api.OpenProcess(
+                win32con.PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+            )
+            if not process_handle:
+                return None
+            full_path = win32process.GetModuleFileNameEx(process_handle, 0)
+            win32api.CloseHandle(process_handle)
+            return os.path.basename(full_path) if full_path else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def list_windows() -> list[WindowInfo]:
+        """List all visible windows, returning window information list.
+
+        Filters out invisible, untitled, and IME system windows,
+        and records parent-child hierarchy (parent_hwnd) for each window.
+        """
+        windows: list[WindowInfo] = []
+        foreground_hwnd = win32gui.GetForegroundWindow()
+        desktop = Desktop(backend="win32")
+
+        for z_order, w in enumerate(desktop.windows()):
+            try:
+                info = w.element_info
+                rect = getattr(info, "rectangle", None)
+                if rect is None:
+                    continue
+                title = getattr(info, "name", "") or ""
+                handle = getattr(info, "handle", None)
+                pid = getattr(info, "process_id", None)
+                class_name = getattr(info, "class_name", "") or ""
+                if not handle:
+                    continue
+                if not w.is_visible():
+                    continue
+                if not title.strip():
+                    continue
+                if class_name in IMMUNE_CLASS_NAMES:
+                    continue
+                parent_hwnd = win32gui.GetParent(handle)
+                windows.append(
+                    WindowInfo(
+                        window_id=str(handle),
+                        title=title,
+                        bounds=Bounds(
+                            x=int(rect.left),
+                            y=int(rect.top),
+                            width=int(rect.right - rect.left),
+                            height=int(rect.bottom - rect.top),
+                        ),
+                        process_id=int(pid) if pid else None,
+                        process_name=WindowsDriver._get_process_name(pid) if pid else None,
+                        is_visible=True,
+                        is_minimized=w.is_minimized(),
+                        is_maximized=w.is_maximized(),
+                        is_foreground=foreground_hwnd == handle,
+                        z_order=z_order,
+                        parent_hwnd=parent_hwnd if parent_hwnd else None,
+                    )
+                )
+            except Exception:
+                continue
+        return windows
+
+    @staticmethod
+    def focus_window(window_id: str) -> bool:
+        """Bring window to foreground and give it focus."""
+        return WindowsDriver._window_action(window_id, "set_focus")
+
+    @staticmethod
+    def minimize_window(window_id: str) -> bool:
+        """Minimize the window."""
+        return WindowsDriver._window_action(window_id, "minimize")
+
+    @staticmethod
+    def maximize_window(window_id: str) -> bool:
+        """Maximize the window."""
+        return WindowsDriver._window_action(window_id, "maximize")
+
+    @staticmethod
+    def restore_window(window_id: str) -> bool:
+        """Restore the window from minimized/maximized state."""
+        return WindowsDriver._window_action(window_id, "restore")
+
+    @staticmethod
+    def close_window(window_id: str) -> bool:
+        """Close the window."""
+        return WindowsDriver._window_action(window_id, "close")
+
+    @staticmethod
+    def move_window(window_id: str, x: int, y: int) -> bool:
+        """Move the window to the specified coordinates."""
+        return WindowsDriver._window_action(window_id, "move_window", x=x, y=y)
+
+    @staticmethod
+    def resize_window(window_id: str, width: int, height: int) -> bool:
+        """Resize the window."""
+        return WindowsDriver._window_action(window_id, "move_window", width=width, height=height)
+
+    @staticmethod
+    def screenshot_window(window_id: str, output: str, rect: Optional[Tuple[int, int, int, int]] = None) -> str:
+        """Capture window screenshot and save to file.
+
+        Args:
+            window_id: Window handle string
+            output: Output file path (supports .png and .bmp)
+            rect: Optional crop region (x, y, width, height), relative to window top-left
+
+        Returns:
+            Absolute path of the saved file
+        """
+        hwnd = int(window_id)
+        output_path = Path(output)
+        win_x, win_y, win_width, win_height, data = Win32API.capture_window_bgra(hwnd)
+        if rect:
+            x, y, width, height = rect
+            cropped = bytearray()
+            for row in range(y, y + height):
+                src_start = row * win_width * 4 + x * 4
+                cropped.extend(data[src_start : src_start + width * 4])
+            data = cropped
+            win_width = width
+            win_height = height
+            win_x += x
+            win_y += y
+        if output_path.suffix.lower() == ".png":
+            Win32API.write_png(output_path, win_width, win_height, data)
+        else:
+            Win32API.write_bmp(output_path, win_width, win_height, data)
+        return str(output_path.absolute())

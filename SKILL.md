@@ -3,7 +3,7 @@ name: winguictl
 description: Automate Windows desktop interactions via winguictl CLI. Invoke when user needs to simulate clicks, type text, press keys, drag, take screenshots, control windows (minimize/maximize/restore/close/move/resize/focus), find UI elements via text/UIA/OCR/image, or control Win32/UIA elements directly.
 metadata:
   openclaw:
-    emoji: "📄"
+    emoji: "🖥️"
     os: ["win32"]
     requires:
       bins: ["python3"]

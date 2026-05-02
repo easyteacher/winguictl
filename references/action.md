@@ -2,6 +2,10 @@
 
 Execute interaction operations.
 
+## Note
+
+Action commands rely on coordinates or image matching and should be used as a fallback when `control` / `uia-control` commands are not applicable. Prefer structured identifiers (`hwnd`, `automation_id`, `runtime_id`) via control commands for more reliable and precise element interaction.
+
 ## Click Coordinates
 
 ```powershell

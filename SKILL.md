@@ -1,6 +1,6 @@
 ---
 name: winguictl
-description: Automate Windows desktop interactions via winguictl CLI. Invoke when user needs to simulate clicks, type text, press keys, drag, take screenshots, control windows (minimize/maximize/restore/close/move/resize/focus), find UI elements via text/UIA/OCR/image, or control Win32/UIA elements directly.
+description: Automate Windows desktop interactions via CLI. Invoke when user needs to simulate clicks, type text, press keys, drag, take screenshots, control windows (minimize/maximize/restore/close/move/resize/focus), find UI elements via text/UIA/OCR/image, or control Win32/UIA elements directly.
 metadata:
   openclaw:
     emoji: "🖥️"
@@ -64,8 +64,9 @@ For detailed command documentation, see:
    - Use `find image` / `click-image` only for iconography, canvas content, or custom-painted controls where no structured locator exists.
    - Use `action` commands (click, drag, type, etc.) only when neither control commands nor image matching are applicable.
    - Use relative window coordinates only when neither structured locators nor image matching are available.
-7. Capture screenshots before or after important steps.
-8. Return structured results, artifact paths, and any follow-up risk.
+7. Inspect window structure again after each step to confirm the changes.
+8. Capture screenshots before or after important steps.
+9. Return structured results, artifact paths, and any follow-up risk.
 
 ## Operating Rules
 

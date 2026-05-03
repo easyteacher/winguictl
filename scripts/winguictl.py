@@ -18,10 +18,15 @@ from ocr_driver import OCRDriver
 from output_utils import (
     build_center_payload,
     build_control_info,
+    build_point_context,
     build_uia_control_info,
     emit,
     emit_action,
+    emit_action_result,
+    format_window_tree,
     generate_nonce,
+    resolve_window_context,
+    validate_relative_coords,
     wrap_with_boundary,
 )
 from uia_driver import UIADriver
@@ -256,49 +261,9 @@ def _handle_window(args) -> int:
     """Handle window subcommands."""
     if args.window_command == "list":
         windows = WindowsDriver.list_windows()
-        window_map = {int(w.window_id): w for w in windows}
-        children_map: dict[int, list[int]] = {}
-        root_ids: list[int] = []
-        for w in windows:
-            hwnd = int(w.window_id)
-            parent = w.parent_hwnd
-            if parent is None or parent == 0 or parent not in window_map:
-                root_ids.append(hwnd)
-            else:
-                if parent not in children_map:
-                    children_map[parent] = []
-                children_map[parent].append(hwnd)
-
-        lines: list[str] = []
-
-        def format_window(hwnd: int, indent: int = 0) -> None:
-            w = window_map[hwnd]
-            state = ""
-            if w.is_minimized:
-                state = ' state="minimized"'
-            elif w.is_maximized:
-                state = ' state="maximized"'
-            if w.is_foreground:
-                state += ' foreground="true"'
-            prefix = "  " * indent
-            parts = [f'{prefix}- "{w.title}" [window_id="{w.window_id}"']
-            parts.append(f"bounds=({w.bounds.x},{w.bounds.y} {w.bounds.width}x{w.bounds.height})")
-            if w.process_id:
-                parts.append(f'pid="{w.process_id}"')
-            if w.process_name:
-                parts.append(f'process="{w.process_name}"')
-            if w.parent_hwnd:
-                parts.append(f'parent_id="{w.parent_hwnd}"')
-            if state:
-                parts.append(state.strip())
-            lines.append(" ".join(parts) + "]")
-            for child_hwnd in children_map.get(hwnd, []):
-                format_window(child_hwnd, indent + 1)
-
-        for root_id in root_ids:
-            format_window(root_id)
+        content = format_window_tree(windows)
         nonce = generate_nonce()
-        print(wrap_with_boundary("\n".join(lines), nonce))
+        print(wrap_with_boundary(content, nonce))
         return 0
 
     action_map = {
@@ -363,36 +328,23 @@ def _handle_action(args) -> int:
     """Handle action subcommands."""
     match args.action_command:
         case "click":
-            window_title = Win32API.get_window_text(int(args.window_id))
-            bounds = Win32API.get_window_bounds(int(args.window_id))
-            if bounds is None:
-                raise ValueError("window not found: %s" % args.window_id)
-
-            if args.x < 0 or args.x >= bounds.width or args.y < 0 or args.y >= bounds.height:
-                raise ValueError("coordinates (%d, %d) are outside window bounds (0-%d, 0-%d)" % (args.x, args.y, bounds.width - 1, bounds.height - 1))
-
+            window_title, bounds = resolve_window_context(args.window_id)
+            validate_relative_coords(args.x, args.y, bounds)
             absolute_x = bounds.x + args.x
             absolute_y = bounds.y + args.y
-
-            element_at_point = UIADriver.get_element_at_point(absolute_x, absolute_y)
-
-            hwnd_at_point = Win32API.get_hwnd_from_point(absolute_x, absolute_y)
-            control_info = build_control_info(hwnd_at_point) if hwnd_at_point else None
-
-            if args.dry_run:
-                emit(ActionResult(ok=True, code="DRY_RUN", message="click preview generated", data={"window_id": args.window_id, "window_title": window_title, "relative": {"x": args.x, "y": args.y}, "element_at_point": element_at_point, "control_info": control_info}).to_dict())
-            else:
+            point_ctx = build_point_context(absolute_x, absolute_y)
+            data = {"window_id": args.window_id, "window_title": window_title, "relative": {"x": args.x, "y": args.y}, **point_ctx}
+            if not args.dry_run:
                 WindowsDriver.focus_window(args.window_id)
                 Win32API.send_click(absolute_x, absolute_y)
-                emit(ActionResult(ok=True, code="OK", message="click executed", data={"window_id": args.window_id, "window_title": window_title, "relative": {"x": args.x, "y": args.y}, "element_at_point": element_at_point, "control_info": control_info}).to_dict())
+            emit_action_result("click", args.dry_run, data)
         case "click-image":
             matches = FindDriver.find_image(window_id=args.window_id, image_path=args.image_path, threshold=args.threshold)
             if not matches:
-                raise ValueError("image target not found: %s" % args.image_path)
+                raise ValueError(f"image target not found: {args.image_path}")
             target = matches[0]
             payload = build_center_payload(target)
             window_title = Win32API.get_window_text(int(target.window_id))
-
             window_bounds = Win32API.get_window_bounds(int(target.window_id))
             if window_bounds:
                 absolute_x = window_bounds.x + payload["relative"]["x"]
@@ -400,160 +352,140 @@ def _handle_action(args) -> int:
             else:
                 absolute_x = payload["relative"]["x"]
                 absolute_y = payload["relative"]["y"]
-
-            element_at_point = UIADriver.get_element_at_point(absolute_x, absolute_y)
-
-            hwnd_at_point = Win32API.get_hwnd_from_point(absolute_x, absolute_y)
-            control_info = build_control_info(hwnd_at_point) if hwnd_at_point else None
-
+            point_ctx = build_point_context(absolute_x, absolute_y)
             payload["window_title"] = window_title
-            payload["element_at_point"] = element_at_point
-            payload["control_info"] = control_info
-
-            if args.dry_run:
-                emit(ActionResult(ok=True, code="DRY_RUN", message="click_image preview generated", data=payload).to_dict())
-            else:
+            payload.update(point_ctx)
+            if not args.dry_run:
                 WindowsDriver.focus_window(target.window_id)
                 Win32API.send_click(absolute_x, absolute_y)
-                emit(ActionResult(ok=True, code="OK", message="click_image executed", data=payload).to_dict())
+            emit_action_result("click_image", args.dry_run, payload)
         case "drag":
-            window_title = Win32API.get_window_text(int(args.window_id))
-            bounds = Win32API.get_window_bounds(int(args.window_id))
-            if bounds is None:
-                raise ValueError("window not found: %s" % args.window_id)
-
-            if args.x1 < 0 or args.x1 >= bounds.width or args.y1 < 0 or args.y1 >= bounds.height:
-                raise ValueError("start coordinates (%d, %d) are outside window bounds (0-%d, 0-%d)" % (args.x1, args.y1, bounds.width - 1, bounds.height - 1))
-
-            if args.x2 < 0 or args.x2 >= bounds.width or args.y2 < 0 or args.y2 >= bounds.height:
-                raise ValueError("end coordinates (%d, %d) are outside window bounds (0-%d, 0-%d)" % (args.x2, args.y2, bounds.width - 1, bounds.height - 1))
-
+            window_title, bounds = resolve_window_context(args.window_id)
+            validate_relative_coords(args.x1, args.y1, bounds)
+            validate_relative_coords(args.x2, args.y2, bounds)
             absolute_x1 = bounds.x + args.x1
             absolute_y1 = bounds.y + args.y1
             absolute_x2 = bounds.x + args.x2
             absolute_y2 = bounds.y + args.y2
-
-            element_at_start = UIADriver.get_element_at_point(absolute_x1, absolute_y1)
-            element_at_end = UIADriver.get_element_at_point(absolute_x2, absolute_y2)
-
-            hwnd_at_start = Win32API.get_hwnd_from_point(absolute_x1, absolute_y1)
-            hwnd_at_end = Win32API.get_hwnd_from_point(absolute_x2, absolute_y2)
-            control_info_start = build_control_info(hwnd_at_start) if hwnd_at_start else None
-            control_info_end = build_control_info(hwnd_at_end) if hwnd_at_end else None
-
-            if args.dry_run:
-                emit(ActionResult(ok=True, code="DRY_RUN", message="drag preview generated", data={"window_id": args.window_id, "window_title": window_title, "from": {"relative": {"x": args.x1, "y": args.y1}, "element_at_point": element_at_start, "control_info": control_info_start}, "to": {"relative": {"x": args.x2, "y": args.y2}, "element_at_point": element_at_end, "control_info": control_info_end}, "duration_ms": args.duration_ms}).to_dict())
-            else:
+            from_ctx = build_point_context(absolute_x1, absolute_y1)
+            to_ctx = build_point_context(absolute_x2, absolute_y2)
+            data = {
+                "window_id": args.window_id, "window_title": window_title,
+                "from": {"relative": {"x": args.x1, "y": args.y1}, **from_ctx},
+                "to": {"relative": {"x": args.x2, "y": args.y2}, **to_ctx},
+                "duration_ms": args.duration_ms,
+            }
+            if not args.dry_run:
                 WindowsDriver.focus_window(args.window_id)
                 Win32API.send_drag(absolute_x1, absolute_y1, absolute_x2, absolute_y2, duration_ms=args.duration_ms)
-                emit(ActionResult(ok=True, code="OK", message="drag executed", data={"window_id": args.window_id, "window_title": window_title, "from": {"relative": {"x": args.x1, "y": args.y1}, "element_at_point": element_at_start, "control_info": control_info_start}, "to": {"relative": {"x": args.x2, "y": args.y2}, "element_at_point": element_at_end, "control_info": control_info_end}, "duration_ms": args.duration_ms}).to_dict())
+            emit_action_result("drag", args.dry_run, data)
         case "type":
             window_title = Win32API.get_window_text(int(args.window_id))
-            if args.dry_run:
-                emit(ActionResult(ok=True, code="DRY_RUN", message="type_text preview generated", data={"window_id": args.window_id, "window_title": window_title, "text": args.text, "length": len(args.text)}).to_dict())
-            else:
+            data = {"window_id": args.window_id, "window_title": window_title, "text": args.text, "length": len(args.text)}
+            if not args.dry_run:
                 WindowsDriver.focus_window(args.window_id)
                 Win32API.move_mouse_to_window_center(int(args.window_id))
                 Win32API.send_type_text(args.text)
-                emit(ActionResult(ok=True, code="OK", message="type_text executed", data={"window_id": args.window_id, "window_title": window_title, "text": args.text, "length": len(args.text)}).to_dict())
+            emit_action_result("type_text", args.dry_run, data)
         case "press-key":
             window_title = Win32API.get_window_text(int(args.window_id))
-            if args.dry_run:
-                emit(ActionResult(ok=True, code="DRY_RUN", message="press_key preview generated", data={"window_id": args.window_id, "window_title": window_title, "key": args.key}).to_dict())
-            else:
+            data = {"window_id": args.window_id, "window_title": window_title, "key": args.key}
+            if not args.dry_run:
                 WindowsDriver.focus_window(args.window_id)
                 Win32API.move_mouse_to_window_center(int(args.window_id))
                 Win32API.send_press_key(args.key)
-                emit(ActionResult(ok=True, code="OK", message="press_key executed", data={"window_id": args.window_id, "window_title": window_title, "key": args.key}).to_dict())
+            emit_action_result("press_key", args.dry_run, data)
         case "hotkey":
             window_title = Win32API.get_window_text(int(args.window_id))
-            if args.dry_run:
-                emit(ActionResult(ok=True, code="DRY_RUN", message="hotkey preview generated", data={"window_id": args.window_id, "window_title": window_title, "keys": args.keys}).to_dict())
-            else:
+            data = {"window_id": args.window_id, "window_title": window_title, "keys": args.keys}
+            if not args.dry_run:
                 WindowsDriver.focus_window(args.window_id)
                 Win32API.move_mouse_to_window_center(int(args.window_id))
                 Win32API.send_hotkey(args.keys)
-                emit(ActionResult(ok=True, code="OK", message="hotkey executed", data={"window_id": args.window_id, "window_title": window_title, "keys": args.keys}).to_dict())
+            emit_action_result("hotkey", args.dry_run, data)
         case "clear-text":
             window_title = Win32API.get_window_text(int(args.window_id))
-            if args.dry_run:
-                emit(ActionResult(ok=True, code="DRY_RUN", message="clear_text preview generated", data={"window_id": args.window_id, "window_title": window_title}).to_dict())
-            else:
+            data = {"window_id": args.window_id, "window_title": window_title}
+            if not args.dry_run:
                 WindowsDriver.focus_window(args.window_id)
                 Win32API.move_mouse_to_window_center(int(args.window_id))
                 Win32API.send_hotkey(["ctrl", "a"])
                 Win32API.send_press_key("delete")
-                emit(ActionResult(ok=True, code="OK", message="clear_text executed", data={"window_id": args.window_id, "window_title": window_title}).to_dict())
+            emit_action_result("clear_text", args.dry_run, data)
         case _:
             return -1
     return 0
 
 
 def _handle_control(args) -> int:
-    """处理 control 子命令（Win32 控件操作）。"""
+    """Handle control subcommands (Win32 control operations)."""
     hwnd = int(args.hwnd)
     control_info = build_control_info(hwnd)
 
-    match args.control_command:
-        case "set-text":
-            Win32Driver.set_text(hwnd, args.text)
-            emit_action(True, "set_text", {**control_info, "text": args.text})
-        case "set-focus":
-            Win32Driver.set_focus(hwnd)
-            emit_action(True, "set_focus", control_info)
-        case "get-text":
-            text = Win32Driver.get_text(hwnd)
-            emit_action(True, "get_text", {**control_info, "text": text})
-        case "click":
-            Win32Driver.click(hwnd)
-            emit_action(True, "click", control_info)
-        case "double-click":
-            Win32Driver.double_click(hwnd)
-            emit_action(True, "double_click", control_info)
-        case "right-click":
-            Win32Driver.right_click(hwnd)
-            emit_action(True, "right_click", control_info)
-        case "check":
-            Win32Driver.check(hwnd)
-            emit_action(True, "check", control_info)
-        case "uncheck":
-            Win32Driver.uncheck(hwnd)
-            emit_action(True, "uncheck", control_info)
-        case "is-checked":
-            checked = Win32Driver.is_checked(hwnd)
-            emit_action(True, "is_checked", {**control_info, "checked": checked})
-        case "type-keys":
-            Win32Driver.type_keys(hwnd, args.keys)
-            emit_action(True, "type_keys", {**control_info, "keys": args.keys})
-        case "send-chars":
-            Win32Driver.send_chars(hwnd, args.chars)
-            emit_action(True, "send_chars", {**control_info, "chars": args.chars})
-        case "send-keystrokes":
-            Win32Driver.send_keystrokes(hwnd, args.keystrokes)
-            emit_action(True, "send_keystrokes", {**control_info, "keystrokes": args.keystrokes})
-        case "combo-select":
-            Win32Driver.combo_select(hwnd, args.item)
-            emit_action(True, "combo_select", {**control_info, "item": args.item})
-        case "combo-items":
-            items = Win32Driver.combo_items(hwnd)
-            emit_action(True, "combo_items", {**control_info, "items": items})
-        case "combo-selected-index":
-            index = Win32Driver.combo_selected_index(hwnd)
-            emit_action(True, "combo_selected_index", {**control_info, "index": index})
-        case "combo-selected-text":
-            text = Win32Driver.combo_selected_text(hwnd)
-            emit_action(True, "combo_selected_text", {**control_info, "text": text})
-        case "listbox-select":
-            Win32Driver.listbox_select(hwnd, args.item)
-            emit_action(True, "listbox_select", {**control_info, "item": args.item})
-        case "listbox-items":
-            items = Win32Driver.listbox_items(hwnd)
-            emit_action(True, "listbox_items", {**control_info, "items": items})
-        case "listbox-selected-indices":
-            indices = Win32Driver.listbox_selected_indices(hwnd)
-            emit_action(True, "listbox_selected_indices", {**control_info, "indices": indices})
-        case _:
-            return -1
+    try:
+        match args.control_command:
+            case "set-text":
+                Win32Driver.set_text(hwnd, args.text)
+                emit_action(True, "set_text", {**control_info, "text": args.text})
+            case "set-focus":
+                Win32Driver.set_focus(hwnd)
+                emit_action(True, "set_focus", control_info)
+            case "get-text":
+                text = Win32Driver.get_text(hwnd)
+                emit_action(True, "get_text", {**control_info, "text": text})
+            case "click":
+                Win32Driver.click(hwnd)
+                emit_action(True, "click", control_info)
+            case "double-click":
+                Win32Driver.double_click(hwnd)
+                emit_action(True, "double_click", control_info)
+            case "right-click":
+                Win32Driver.right_click(hwnd)
+                emit_action(True, "right_click", control_info)
+            case "check":
+                Win32Driver.check(hwnd)
+                emit_action(True, "check", control_info)
+            case "uncheck":
+                Win32Driver.uncheck(hwnd)
+                emit_action(True, "uncheck", control_info)
+            case "is-checked":
+                checked = Win32Driver.is_checked(hwnd)
+                emit_action(True, "is_checked", {**control_info, "checked": checked})
+            case "type-keys":
+                Win32Driver.type_keys(hwnd, args.keys)
+                emit_action(True, "type_keys", {**control_info, "keys": args.keys})
+            case "send-chars":
+                Win32Driver.send_chars(hwnd, args.chars)
+                emit_action(True, "send_chars", {**control_info, "chars": args.chars})
+            case "send-keystrokes":
+                Win32Driver.send_keystrokes(hwnd, args.keystrokes)
+                emit_action(True, "send_keystrokes", {**control_info, "keystrokes": args.keystrokes})
+            case "combo-select":
+                Win32Driver.combo_select(hwnd, args.item)
+                emit_action(True, "combo_select", {**control_info, "item": args.item})
+            case "combo-items":
+                items = Win32Driver.combo_items(hwnd)
+                emit_action(True, "combo_items", {**control_info, "items": items})
+            case "combo-selected-index":
+                index = Win32Driver.combo_selected_index(hwnd)
+                emit_action(True, "combo_selected_index", {**control_info, "index": index})
+            case "combo-selected-text":
+                text = Win32Driver.combo_selected_text(hwnd)
+                emit_action(True, "combo_selected_text", {**control_info, "text": text})
+            case "listbox-select":
+                Win32Driver.listbox_select(hwnd, args.item)
+                emit_action(True, "listbox_select", {**control_info, "item": args.item})
+            case "listbox-items":
+                items = Win32Driver.listbox_items(hwnd)
+                emit_action(True, "listbox_items", {**control_info, "items": items})
+            case "listbox-selected-indices":
+                indices = Win32Driver.listbox_selected_indices(hwnd)
+                emit_action(True, "listbox_selected_indices", {**control_info, "indices": indices})
+            case _:
+                return -1
+    except Exception as e:
+        emit_action(False, args.control_command, {**control_info, "error": str(e)})
+        return 1
     return 0
 
 
@@ -563,102 +495,106 @@ def _handle_uia_control(args) -> int:
     eid = args.element_id
     uia_info = build_uia_control_info(wid, eid)
 
-    match args.uia_control_command:
-        case "click":
-            UIADriver.click(wid, eid)
-            emit_action(True, "click", uia_info)
-        case "double-click":
-            UIADriver.double_click(wid, eid)
-            emit_action(True, "double_click", uia_info)
-        case "right-click":
-            UIADriver.right_click(wid, eid)
-            emit_action(True, "right_click", uia_info)
-        case "invoke":
-            UIADriver.invoke(wid, eid)
-            emit_action(True, "invoke", uia_info)
-        case "toggle":
-            UIADriver.toggle(wid, eid)
-            emit_action(True, "toggle", uia_info)
-        case "get-toggle-state":
-            state = UIADriver.get_toggle_state(wid, eid)
-            emit_action(True, "get_toggle_state", {**uia_info, "state": state})
-        case "get-text":
-            text = UIADriver.get_text(wid, eid)
-            emit_action(True, "get_text", {**uia_info, "text": text})
-        case "set-text":
-            UIADriver.set_text(wid, eid, args.text)
-            emit_action(True, "set_text", {**uia_info, "text": args.text})
-        case "set-focus":
-            UIADriver.set_focus(wid, eid)
-            emit_action(True, "set_focus", uia_info)
-        case "type-keys":
-            UIADriver.type_keys(wid, eid, args.keys)
-            emit_action(True, "type_keys", {**uia_info, "keys": args.keys})
-        case "scroll":
-            UIADriver.scroll(wid, eid, args.direction, args.amount, args.count)
-            emit_action(True, "scroll", {**uia_info, "direction": args.direction, "amount": args.amount, "count": args.count})
-        case "get-value":
-            value = UIADriver.get_value(wid, eid)
-            emit_action(True, "get_value", {**uia_info, "value": value})
-        case "set-value":
-            UIADriver.set_value(wid, eid, args.value)
-            emit_action(True, "set_value", {**uia_info, "value": args.value})
-        case "select":
-            UIADriver.select(wid, eid)
-            emit_action(True, "select", uia_info)
-        case "expand":
-            UIADriver.expand(wid, eid)
-            emit_action(True, "expand", uia_info)
-        case "collapse":
-            UIADriver.collapse(wid, eid)
-            emit_action(True, "collapse", uia_info)
-        case "is-expanded":
-            expanded = UIADriver.is_expanded(wid, eid)
-            emit_action(True, "is_expanded", {**uia_info, "expanded": expanded})
-        case "combo-select":
-            UIADriver.combo_select(wid, eid, args.item)
-            emit_action(True, "combo_select", {**uia_info, "item": args.item})
-        case "combo-items":
-            items = UIADriver.combo_items(wid, eid)
-            emit_action(True, "combo_items", {**uia_info, "items": items})
-        case "combo-selected-text":
-            text = UIADriver.combo_selected_text(wid, eid)
-            emit_action(True, "combo_selected_text", {**uia_info, "text": text})
-        case "combo-selected-index":
-            index = UIADriver.combo_selected_index(wid, eid)
-            emit_action(True, "combo_selected_index", {**uia_info, "index": index})
-        case "list-items":
-            items = UIADriver.list_items(wid, eid)
-            emit_action(True, "list_items", {**uia_info, "items": items})
-        case "list-select":
-            UIADriver.list_select(wid, eid, args.item)
-            emit_action(True, "list_select", {**uia_info, "item": args.item})
-        case "list-selected-items":
-            items = UIADriver.list_selected_items(wid, eid)
-            emit_action(True, "list_selected_items", {**uia_info, "items": items})
-        case "tab-select":
-            UIADriver.tab_select(wid, eid, args.item)
-            emit_action(True, "tab_select", {**uia_info, "item": args.item})
-        case "tab-selected":
-            index = UIADriver.tab_selected(wid, eid)
-            emit_action(True, "tab_selected", {**uia_info, "index": index})
-        case "tab-count":
-            count = UIADriver.tab_count(wid, eid)
-            emit_action(True, "tab_count", {**uia_info, "count": count})
-        case "slider-value":
-            value = UIADriver.slider_value(wid, eid)
-            emit_action(True, "slider_value", {**uia_info, "value": value})
-        case "slider-set":
-            UIADriver.slider_set_value(wid, eid, args.value)
-            emit_action(True, "slider_set_value", {**uia_info, "value": args.value})
-        case "slider-min":
-            value = UIADriver.slider_min(wid, eid)
-            emit_action(True, "slider_min", {**uia_info, "value": value})
-        case "slider-max":
-            value = UIADriver.slider_max(wid, eid)
-            emit_action(True, "slider_max", {**uia_info, "value": value})
-        case _:
-            return -1
+    try:
+        match args.uia_control_command:
+            case "click":
+                UIADriver.click(wid, eid)
+                emit_action(True, "click", uia_info)
+            case "double-click":
+                UIADriver.double_click(wid, eid)
+                emit_action(True, "double_click", uia_info)
+            case "right-click":
+                UIADriver.right_click(wid, eid)
+                emit_action(True, "right_click", uia_info)
+            case "invoke":
+                UIADriver.invoke(wid, eid)
+                emit_action(True, "invoke", uia_info)
+            case "toggle":
+                UIADriver.toggle(wid, eid)
+                emit_action(True, "toggle", uia_info)
+            case "get-toggle-state":
+                state = UIADriver.get_toggle_state(wid, eid)
+                emit_action(True, "get_toggle_state", {**uia_info, "state": state})
+            case "get-text":
+                text = UIADriver.get_text(wid, eid)
+                emit_action(True, "get_text", {**uia_info, "text": text})
+            case "set-text":
+                UIADriver.set_text(wid, eid, args.text)
+                emit_action(True, "set_text", {**uia_info, "text": args.text})
+            case "set-focus":
+                UIADriver.set_focus(wid, eid)
+                emit_action(True, "set_focus", uia_info)
+            case "type-keys":
+                UIADriver.type_keys(wid, eid, args.keys)
+                emit_action(True, "type_keys", {**uia_info, "keys": args.keys})
+            case "scroll":
+                UIADriver.scroll(wid, eid, args.direction, args.amount, args.count)
+                emit_action(True, "scroll", {**uia_info, "direction": args.direction, "amount": args.amount, "count": args.count})
+            case "get-value":
+                value = UIADriver.get_value(wid, eid)
+                emit_action(True, "get_value", {**uia_info, "value": value})
+            case "set-value":
+                UIADriver.set_value(wid, eid, args.value)
+                emit_action(True, "set_value", {**uia_info, "value": args.value})
+            case "select":
+                UIADriver.select(wid, eid)
+                emit_action(True, "select", uia_info)
+            case "expand":
+                UIADriver.expand(wid, eid)
+                emit_action(True, "expand", uia_info)
+            case "collapse":
+                UIADriver.collapse(wid, eid)
+                emit_action(True, "collapse", uia_info)
+            case "is-expanded":
+                expanded = UIADriver.is_expanded(wid, eid)
+                emit_action(True, "is_expanded", {**uia_info, "expanded": expanded})
+            case "combo-select":
+                UIADriver.combo_select(wid, eid, args.item)
+                emit_action(True, "combo_select", {**uia_info, "item": args.item})
+            case "combo-items":
+                items = UIADriver.combo_items(wid, eid)
+                emit_action(True, "combo_items", {**uia_info, "items": items})
+            case "combo-selected-text":
+                text = UIADriver.combo_selected_text(wid, eid)
+                emit_action(True, "combo_selected_text", {**uia_info, "text": text})
+            case "combo-selected-index":
+                index = UIADriver.combo_selected_index(wid, eid)
+                emit_action(True, "combo_selected_index", {**uia_info, "index": index})
+            case "list-items":
+                items = UIADriver.list_items(wid, eid)
+                emit_action(True, "list_items", {**uia_info, "items": items})
+            case "list-select":
+                UIADriver.list_select(wid, eid, args.item)
+                emit_action(True, "list_select", {**uia_info, "item": args.item})
+            case "list-selected-items":
+                items = UIADriver.list_selected_items(wid, eid)
+                emit_action(True, "list_selected_items", {**uia_info, "items": items})
+            case "tab-select":
+                UIADriver.tab_select(wid, eid, args.item)
+                emit_action(True, "tab_select", {**uia_info, "item": args.item})
+            case "tab-selected":
+                index = UIADriver.tab_selected(wid, eid)
+                emit_action(True, "tab_selected", {**uia_info, "index": index})
+            case "tab-count":
+                count = UIADriver.tab_count(wid, eid)
+                emit_action(True, "tab_count", {**uia_info, "count": count})
+            case "slider-value":
+                value = UIADriver.slider_value(wid, eid)
+                emit_action(True, "slider_value", {**uia_info, "value": value})
+            case "slider-set":
+                UIADriver.slider_set_value(wid, eid, args.value)
+                emit_action(True, "slider_set_value", {**uia_info, "value": args.value})
+            case "slider-min":
+                value = UIADriver.slider_min(wid, eid)
+                emit_action(True, "slider_min", {**uia_info, "value": value})
+            case "slider-max":
+                value = UIADriver.slider_max(wid, eid)
+                emit_action(True, "slider_max", {**uia_info, "value": value})
+            case _:
+                return -1
+    except Exception as e:
+        emit_action(False, args.uia_control_command, {**uia_info, "error": str(e)})
+        return 1
     return 0
 
 
@@ -691,7 +627,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         }
         handler = handler_map.get(args.command)
         if handler is None:
-            parser.error("unknown command: %s" % args.command)
+            parser.error(f"unknown command: {args.command}")
             return 1
         result = handler(args)
         return result if result >= 0 else 1

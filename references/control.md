@@ -38,11 +38,11 @@ python scripts\winguictl.py control --hwnd <hwnd> check
 python scripts\winguictl.py control --hwnd <hwnd> uncheck
 
 # Select an item in a combobox or listbox
-python scripts\winguictl.py control --hwnd <hwnd> select --index 0
-python scripts\winguictl.py control --hwnd <hwnd> select --text "Option 1"
+python scripts\winguictl.py control --hwnd <hwnd> combo-select 0
+python scripts\winguictl.py control --hwnd <hwnd> combo-select "Option 1"
 
 # Get the number of items in a combobox or listbox
-python scripts\winguictl.py control --hwnd <hwnd> count
+python scripts\winguictl.py control --hwnd <hwnd> combo-items
 ```
 
 ### Win32 Control Subcommand Summary
@@ -50,12 +50,24 @@ python scripts\winguictl.py control --hwnd <hwnd> count
 | Subcommand | Description | Parameters |
 |--------|------|------|
 | `click` | Click a control | `--hwnd` |
+| `double-click` | Double-click a control | `--hwnd` |
+| `right-click` | Right-click a control | `--hwnd` |
 | `get-text` | Get control text | `--hwnd` |
-| `set-text` | Set control text | `--hwnd`, `--text` |
-| `check` | Check a checkbox/radio | `--hwnd` |
-| `uncheck` | Uncheck a checkbox/radio | `--hwnd` |
-| `select` | Select an item | `--hwnd`, `--index` or `--text` |
-| `count` | Get item count | `--hwnd` |
+| `set-text` | Set control text | `--hwnd`, `text` (positional) |
+| `set-focus` | Set focus to control | `--hwnd` |
+| `type-keys` | Type keys to control | `--hwnd`, `keys` (positional) |
+| `send-chars` | Send chars to inactive window | `--hwnd`, `chars` (positional) |
+| `send-keystrokes` | Send keystrokes to inactive window | `--hwnd`, `keystrokes` (positional) |
+| `check` | Check a checkbox | `--hwnd` |
+| `uncheck` | Uncheck a checkbox | `--hwnd` |
+| `is-checked` | Get checkbox state | `--hwnd` |
+| `combo-select` | Select combobox item | `--hwnd`, `item` (positional: index or text) |
+| `combo-items` | Get combobox items | `--hwnd` |
+| `combo-selected-index` | Get combobox selected index | `--hwnd` |
+| `combo-selected-text` | Get combobox selected text | `--hwnd` |
+| `listbox-select` | Select listbox item | `--hwnd`, `item` (positional: index or text) |
+| `listbox-items` | Get listbox items | `--hwnd` |
+| `listbox-selected-indices` | Get listbox selected indices | `--hwnd` |
 
 ## UIA Element Operations
 
@@ -79,19 +91,19 @@ python scripts\winguictl.py uia-control --window-id <id> --element-id "Node1" ex
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Node1" collapse
 
 # Scroll a scrollable element
-python scripts\winguictl.py uia-control --window-id <id> --element-id "List1" scroll --direction down --amount small
+python scripts\winguictl.py uia-control --window-id <id> --element-id "List1" scroll down --amount page --count 3
+
+# Type keys to a UIA element
+python scripts\winguictl.py uia-control --window-id <id> --element-id "Edit1" type-keys "{ENTER}"
 
 # Set slider value
-python scripts\winguictl.py uia-control --window-id <id> --element-id "Slider1" set-slider-value --value 50
+python scripts\winguictl.py uia-control --window-id <id> --element-id "Slider1" slider-set 50
 
 # Select a UIA element
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Item1" select
 
 # Get toggle state (for CheckBox, etc.)
-python scripts\winguictl.py uia-control --window-id <id> --element-id "Check1" toggle
-
-# Get element property value
-python scripts\winguictl.py uia-control --window-id <id> --element-id "Button1" get-property --property Name
+python scripts\winguictl.py uia-control --window-id <id> --element-id "Check1" get-toggle-state
 ```
 
 ### Element ID Format
@@ -106,31 +118,36 @@ python scripts\winguictl.py uia-control --window-id <id> --element-id "Button1" 
 | `click` | Click element | `--window-id`, `--element-id` |
 | `get-text` | Get element text | `--window-id`, `--element-id` |
 | `set-value` | Set element value | `--window-id`, `--element-id`, `--value` |
+| `set-text` | Set element text | `--window-id`, `--element-id`, `text` (positional) |
+| `set-focus` | Set focus to element | `--window-id`, `--element-id` |
+| `invoke` | Invoke element (buttons, menu items) | `--window-id`, `--element-id` |
+| `toggle` | Toggle element state | `--window-id`, `--element-id` |
+| `get-toggle-state` | Get toggle state (0=off, 1=on, 2=indeterminate) | `--window-id`, `--element-id` |
+| `select` | Select element | `--window-id`, `--element-id` |
 | `expand` | Expand node | `--window-id`, `--element-id` |
 | `collapse` | Collapse node | `--window-id`, `--element-id` |
-| `scroll` | Scroll element | `--window-id`, `--element-id`, `--direction`, `--amount` |
-| `set-slider-value` | Set slider value | `--window-id`, `--element-id`, `--value` |
-| `select` | Select element | `--window-id`, `--element-id` |
-| `toggle` | Toggle element state | `--window-id`, `--element-id` |
-| `get-property` | Get element property | `--window-id`, `--element-id`, `--property` |
+| `is-expanded` | Check if element is expanded | `--window-id`, `--element-id` |
+| `scroll` | Scroll element | `--window-id`, `--element-id`, `direction`, `--amount`, `--count` |
+| `combo-select` | Select combo box item | `--window-id`, `--element-id`, `item` (positional) |
+| `combo-items` | Get combo box items | `--window-id`, `--element-id` |
+| `combo-selected-text` | Get selected text in combo box | `--window-id`, `--element-id` |
+| `combo-selected-index` | Get selected index in combo box | `--window-id`, `--element-id` |
+| `list-items` | Get list items | `--window-id`, `--element-id` |
+| `list-select` | Select list item | `--window-id`, `--element-id`, `item` (positional: index or text) |
+| `list-selected-items` | Get selected list items | `--window-id`, `--element-id` |
+| `tab-select` | Select tab by index or text | `--window-id`, `--element-id`, `item` (positional) |
+| `tab-selected` | Get selected tab index | `--window-id`, `--element-id` |
+| `tab-count` | Get tab count | `--window-id`, `--element-id` |
+| `slider-value` | Get slider value | `--window-id`, `--element-id` |
+| `slider-set` | Set slider value | `--window-id`, `--element-id`, `value` (positional) |
+| `slider-min` | Get slider minimum | `--window-id`, `--element-id` |
+| `slider-max` | Get slider maximum | `--window-id`, `--element-id` |
+| `type-keys` | Type keys to element | `--window-id`, `--element-id`, `keys` (positional) |
 
 ### Scroll Parameters
 
 | Parameter | Value |
 |------|------|
 | `--direction` | `up`, `down`, `left`, `right` |
-| `--amount` | `small` (one line), `large` (one page) |
-
-### Common Property Names
-
-| Property | Description |
-|------|------|
-| `Name` | Element name |
-| `ClassName` | Class name |
-| `ControlType` | Control type |
-| `IsEnabled` | Whether enabled |
-| `IsOffscreen` | Whether off-screen |
-| `BoundingRectangle` | Bounding rectangle |
-| `ProcessId` | Process ID |
-| `IsKeyboardFocusable` | Whether keyboard focusable |
-| `HasKeyboardFocus` | Whether has keyboard focus |
+| `--amount` | `line`, `page` |
+| `--count` | Number of scrolls (default: 1) |

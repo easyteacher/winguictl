@@ -4,8 +4,16 @@ Install dependencies in a virtual environment from trusted package indexes, pin 
 
 ## Quick Install
 
+### Core dependencies (required)
+
 ```powershell
 pip install -r assets/requirements.txt
+```
+
+### Optional dependencies (image matching)
+
+```powershell
+pip install -r assets/requirements-optional.txt
 ```
 
 ## Package Details
@@ -20,4 +28,3 @@ pip install -r assets/requirements.txt
 | wx-ocr | `pip install wx-ocr` | No | Self-contained WeChat OCR, no external dependencies |
 | opencv-python | `pip install opencv-python` | No | Image template matching |
 | numpy | `pip install numpy` | No | Array operations for OpenCV |
-

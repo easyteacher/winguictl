@@ -96,7 +96,7 @@ python scripts\winguictl.py find --window-id <id> ocr "Confirm" --confidence-thr
 
 ### Note
 
-The `--confidence-threshold` parameter is currently reserved for future use. The wx_ocr library does not provide confidence scores, so all matches are assigned a fixed confidence of 0.9.
+The `--confidence-threshold` parameter is accepted but currently ignored. The wx_ocr library does not provide confidence scores, so all matches are assigned a fixed confidence of 0.9. If a non-zero threshold is specified, a warning will be logged.
 
 ### Warning
 
@@ -110,4 +110,25 @@ python scripts\winguictl.py find --window-id <id> image --image-path assets\butt
 
 # Find image template with custom match similarity threshold (default 0.9)
 python scripts\winguictl.py find --window-id <id> image --image-path assets\button.png --threshold 0.95
+
+# Find image template with custom overlap threshold for deduplication (default 0.5)
+python scripts\winguictl.py find --window-id <id> image --image-path assets\button.png --overlap-threshold 0.3
 ```
+
+### Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--image-path` | (required) | Path to the template image file |
+| `--threshold` | 0.9 | Match confidence threshold (0-1). Higher values require closer matches. |
+| `--max-results` | 5 | Maximum number of results to return |
+| `--overlap-threshold` | 0.5 | IoU threshold for non-maximum suppression (0-1). Higher values allow more overlapping matches. Use lower values (e.g., 0.3) to get fewer overlapping results, or higher values (e.g., 0.7) to allow more overlapping matches. |
+
+### Overlap Threshold Explanation
+
+The `--overlap-threshold` parameter controls how the deduplication (non-maximum suppression) works:
+
+- **Lower values (e.g., 0.3)**: More aggressive deduplication. Matches with >30% overlap will be suppressed. Results in fewer, more distinct matches.
+- **Higher values (e.g., 0.7)**: Less aggressive deduplication. Only matches with >70% overlap are suppressed. Allows more overlapping matches.
+- **Value of 0**: No deduplication. All matches above the confidence threshold are returned.
+- **Value of 1**: Maximum deduplication. Only completely non-overlapping matches are kept.

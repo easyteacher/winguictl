@@ -70,6 +70,11 @@ class FindDriver:
         5. fallback to id(info)
 
         Note:
+            runtime_id is preferred over automation_id because automation_id may have
+            duplicates, especially in Qt applications where multiple controls can share
+            the same automation_id. runtime_id is guaranteed to be unique within a
+            desktop session.
+
             A plain hwnd string (e.g. "12345") is NOT used because _get_uia_wrapper
             interprets it as an automation_id search, which would fail. Instead,
             handles are prefixed with "uia-" to use runtime_id-style lookup.

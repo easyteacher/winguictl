@@ -117,6 +117,22 @@ python scripts\winguictl.py uia-control --window-id <id> --element-id "Check1" g
 - **automation_id**: String identifier, e.g. `"Button1"`, `"Edit1"`
 - **runtime_id**: Hyphen-separated numeric identifier, e.g. `"42-123456"`, `"42-123456-7"`
 
+### Element ID Recommendation
+
+**Prefer `runtime_id` over `automation_id`** when specifying `--element-id`:
+
+- `runtime_id` is guaranteed to be unique within a desktop session
+- `automation_id` may have duplicates, especially in Qt applications where multiple controls can share the same automation_id
+
+Example:
+```powershell
+# Preferred: use runtime_id
+python scripts\winguictl.py uia-control --window-id 12345 --element-id "42-3155764" click
+
+# Not recommended: automation_id may not be unique
+python scripts\winguictl.py uia-control --window-id 12345 --element-id "SubmitButton" click
+```
+
 ### UIA Element Subcommand Summary
 
 | Subcommand | Description | Parameters |

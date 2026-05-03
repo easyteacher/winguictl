@@ -90,13 +90,17 @@ def build_center_payload(target) -> dict:
     center_x = target.bounds.x + (target.bounds.width // 2)
     center_y = target.bounds.y + (target.bounds.height // 2)
 
-    window_bounds = Win32API.get_window_bounds(int(target.window_id))
-    if window_bounds:
-        relative_x = center_x - window_bounds.x
-        relative_y = center_y - window_bounds.y
-    else:
+    if getattr(target, "source", None) == "image":
         relative_x = center_x
         relative_y = center_y
+    else:
+        window_bounds = Win32API.get_window_bounds(int(target.window_id))
+        if window_bounds:
+            relative_x = center_x - window_bounds.x
+            relative_y = center_y - window_bounds.y
+        else:
+            relative_x = center_x
+            relative_y = center_y
 
     return {
         "window_id": target.window_id,

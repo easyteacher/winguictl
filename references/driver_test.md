@@ -30,6 +30,154 @@ Output example:
 
 ---
 
+## Window Management Tests
+
+### List Windows
+
+```powershell
+python scripts\winguictl.py window list
+```
+
+### Focus Window
+
+```powershell
+python scripts\winguictl.py window --window-id <window_id> focus
+```
+
+### Close Window
+
+```powershell
+python scripts\winguictl.py window --window-id <window_id> close
+```
+
+### Minimize/Maximize/Restore Window
+
+```powershell
+python scripts\winguictl.py window --window-id <window_id> minimize
+python scripts\winguictl.py window --window-id <window_id> maximize
+python scripts\winguictl.py window --window-id <window_id> restore
+```
+
+### Move/Resize Window
+
+```powershell
+python scripts\winguictl.py window --window-id <window_id> move --x 100 --y 100
+python scripts\winguictl.py window --window-id <window_id> resize --width 800 --height 600
+```
+
+---
+
+## Action Tests
+
+### Type Text
+
+```powershell
+python scripts\winguictl.py action --window-id <window_id> type --text "Hello World"
+```
+
+### Press Key
+
+```powershell
+python scripts\winguictl.py action --window-id <window_id> press-key --key Enter
+python scripts\winguictl.py action --window-id <window_id> press-key --key Escape
+```
+
+### Hotkey
+
+```powershell
+python scripts\winguictl.py action --window-id <window_id> hotkey --keys Ctrl S
+python scripts\winguictl.py action --window-id <window_id> hotkey --keys Ctrl A
+```
+
+### Click at Coordinates
+
+```powershell
+python scripts\winguictl.py action --window-id <window_id> click --x 100 --y 100
+```
+
+### Drag
+
+```powershell
+python scripts\winguictl.py action --window-id <window_id> drag --x1 100 --y1 100 --x2 200 --y2 200
+```
+
+### Clear Text
+
+```powershell
+python scripts\winguictl.py action --window-id <window_id> clear-text
+```
+
+---
+
+## Snapshot Tests
+
+### UIA Snapshot
+
+```powershell
+python scripts\winguictl.py snapshot --window-id <window_id> uia
+```
+
+### HWND Snapshot
+
+```powershell
+python scripts\winguictl.py snapshot --window-id <window_id> hwnd
+```
+
+### OCR Snapshot
+
+```powershell
+python scripts\winguictl.py snapshot --window-id <window_id> ocr
+```
+
+---
+
+## Find Tests
+
+### Find by Text
+
+```powershell
+python scripts\winguictl.py find --window-id <window_id> text "Button Text"
+python scripts\winguictl.py find --window-id <window_id> text "Button Text" --exact
+```
+
+### Find UIA Elements
+
+```powershell
+# Find by text
+python scripts\winguictl.py find --window-id <window_id> uia --text "One"
+
+# Find by control type
+python scripts\winguictl.py find --window-id <window_id> uia --control-type Button
+python scripts\winguictl.py find --window-id <window_id> uia --control-type ComboBox
+python scripts\winguictl.py find --window-id <window_id> uia --control-type Edit
+```
+
+### Find by OCR
+
+```powershell
+python scripts\winguictl.py find --window-id <window_id> ocr "Text"
+```
+
+### Find by Image
+
+```powershell
+python scripts\winguictl.py find --window-id <window_id> image --image-path template.png
+```
+
+---
+
+## Screenshot Tests
+
+```powershell
+# Full window screenshot
+python scripts\winguictl.py screenshot --window-id <window_id> --output screenshot.png
+
+# Region screenshot
+python scripts\winguictl.py screenshot --window-id <window_id> --output region.png --x 100 --y 100 --width 200 --height 200
+```
+
+---
+
 ## Win32Driver Tests
 
 ### Get Control hwnd
@@ -138,6 +286,20 @@ Notepad text editor:
 - "Text Editor" [control_type="Document" class="RichEditD2DPT" enabled=true rect=(582,199 882x692) runtime_id="42-402474"]
 ```
 
+#### Element ID Format
+
+The `--element-id` parameter accepts:
+- **automation_id**: e.g., `num1Button`, `plusButton`, `equalButton`
+- **runtime_id**: e.g., `42-795520-4-94`
+
+```powershell
+# Using automation_id
+python scripts\winguictl.py uia-control --window-id <window_id> --element-id num1Button click
+
+# Using runtime_id
+python scripts\winguictl.py uia-control --window-id <window_id> --element-id "42-795520-4-94" click
+```
+
 ### Test Click Operations
 
 ```powershell
@@ -149,6 +311,9 @@ python scripts\winguictl.py uia-control --window-id <window_id> --element-id <el
 
 # Right click an element
 python scripts\winguictl.py uia-control --window-id <window_id> --element-id <element_id> right-click
+
+# Invoke (for buttons, menu items)
+python scripts\winguictl.py uia-control --window-id <window_id> --element-id <element_id> invoke
 ```
 
 ### Test Keyboard Input
@@ -214,11 +379,11 @@ python scripts\winguictl.py uia-control --window-id <window_id> --element-id <el
 ### Test Combobox
 
 ```powershell
-# Select item
+# Select item (by index or text)
 python scripts\winguictl.py uia-control --window-id <window_id> --element-id <element_id> combo-select 0
 python scripts\winguictl.py uia-control --window-id <window_id> --element-id <element_id> combo-select "Option Text"
 
-# Get all items
+# Get all items (expands combobox automatically)
 python scripts\winguictl.py uia-control --window-id <window_id> --element-id <element_id> combo-items
 
 # Get selected text
@@ -246,63 +411,162 @@ python scripts\winguictl.py uia-control --window-id <window_id> --element-id <el
 
 ## Complete Test Examples
 
-### Notepad Win32 Test
+### Notepad Complete Test
 
 ```powershell
-# 1. Get Notepad window ID
+# 1. Launch Notepad
+Start-Process notepad
+
+# 2. Get Notepad window ID
 python scripts\winguictl.py window list
+# Output: "无标题 - Notepad" [window_id="4918678" ...]
 
-# 2. Get edit box hwnd
-python scripts\winguictl.py snapshot --window-id 533514 hwnd
+# 3. Focus window
+python scripts\winguictl.py window --window-id 4918678 focus
 
-# 3. Test input
-python scripts\winguictl.py control --hwnd 402474 type-keys "Hello from type_keys!"
-python scripts\winguictl.py control --hwnd 402474 send-chars " SEND_CHARS "
-python scripts\winguictl.py control --hwnd 402474 send-keystrokes "{ENTER}send_keystrokes test{ENTER}"
+# 4. Type text
+python scripts\winguictl.py action --window-id 4918678 type --text "Hello, this is a test from winguictl!"
 
-# 4. Test click
-python scripts\winguictl.py control --hwnd 402474 click
-python scripts\winguictl.py control --hwnd 402474 double-click
-python scripts\winguictl.py control --hwnd 402474 right-click
-```
+# 5. Get UIA snapshot
+python scripts\winguictl.py snapshot --window-id 4918678 uia
 
-### Notepad UIA Test
+# 6. Get HWND snapshot
+python scripts\winguictl.py snapshot --window-id 4918678 hwnd
 
-```powershell
-# 1. Get UIA elements
-python scripts\winguictl.py snapshot --window-id 533514 uia
+# 7. Open Save dialog
+python scripts\winguictl.py action --window-id 4918678 hotkey --keys Ctrl S
 
-# 2. Test text operations
-python scripts\winguictl.py uia-control --window-id 533514 --element-id "42-402474" set-text "UIA set-text test"
-python scripts\winguictl.py uia-control --window-id 533514 --element-id "42-402474" type-keys "{ENTER}Type-keys test{ENTER}"
-python scripts\winguictl.py uia-control --window-id 533514 --element-id "42-402474" get-text
+# 8. Get Save dialog window ID
+python scripts\winguictl.py window list
+# Output: "另存为" [window_id="3745666" ...]
 
-# 3. Test scroll
-python scripts\winguictl.py uia-control --window-id 533514 --element-id "42-402474" scroll down
-python scripts\winguictl.py uia-control --window-id 533514 --element-id "42-402474" scroll up --amount line --count 5
+# 9. Find ComboBox elements
+python scripts\winguictl.py find --window-id 3745666 uia --control-type ComboBox
+
+# 10. Test encoding ComboBox
+python scripts\winguictl.py uia-control --window-id 3745666 --element-id "42-1189248" combo-items
+python scripts\winguictl.py uia-control --window-id 3745666 --element-id "42-1189248" combo-selected-text
+python scripts\winguictl.py uia-control --window-id 3745666 --element-id "42-1189248" combo-select "GB18030"
+
+# 11. Close Save dialog
+python scripts\winguictl.py action --window-id 3745666 press-key --key Escape
+
+# 12. Close Notepad
+python scripts\winguictl.py window --window-id 4918678 close
 ```
 
 ### Calculator UIA Test
 
 ```powershell
-# 1. Get Calculator window ID
+# 1. Launch Calculator
+Start-Process calc
+
+# 2. Get Calculator window ID
 python scripts\winguictl.py window list
+# Output: "计算器" [window_id="12133502" ...]
 
-# 2. Get button elements
-python scripts\winguictl.py snapshot --window-id 4727732 uia
+# 3. Get UIA snapshot
+python scripts\winguictl.py snapshot --window-id 12133502 uia
 
-# 3. Test button clicks
-python scripts\winguictl.py uia-control --window-id 4727732 --element-id num1Button click
-python scripts\winguictl.py uia-control --window-id 4727732 --element-id num2Button double-click
-python scripts\winguictl.py uia-control --window-id 4727732 --element-id num3Button right-click
-python scripts\winguictl.py uia-control --window-id 4727732 --element-id plusButton click
-python scripts\winguictl.py uia-control --window-id 4727732 --element-id num5Button click
-python scripts\winguictl.py uia-control --window-id 4727732 --element-id equalButton click
+# 4. Find number buttons
+python scripts\winguictl.py find --window-id 12133502 uia --text "一"
+python scripts\winguictl.py find --window-id 12133502 uia --text "加"
+python scripts\winguictl.py find --window-id 12133502 uia --text "等于"
+
+# 5. Test calculation: 1 + 2 = 3
+python scripts\winguictl.py uia-control --window-id 12133502 --element-id num1Button click
+python scripts\winguictl.py uia-control --window-id 12133502 --element-id plusButton click
+python scripts\winguictl.py uia-control --window-id 12133502 --element-id num2Button click
+python scripts\winguictl.py uia-control --window-id 12133502 --element-id equalButton click
+
+# 6. Take screenshot
+python scripts\winguictl.py screenshot --window-id 12133502 --output calculator_result.png
+
+# 7. Close Calculator
+python scripts\winguictl.py window --window-id 12133502 close
 ```
 
 ---
 
+## Known Issues and Notes
+
+### Element ID Resolution
+
+- **automation_id** is preferred for stable element identification
+- **runtime_id** is more reliable but changes between sessions
+- If `automation_id` lookup fails, try using `runtime_id` from snapshot output
+
+### ComboBox Operations
+
+- `combo-items` automatically expands the ComboBox to retrieve items
+- For custom ComboBox controls (like file type selector in Save dialog), items may not be directly accessible
+- Standard Win32 ComboBox controls work best with `combo-items` and `combo-selected-index`
+
+### Window Close
+
+- `window close` may fail if the application shows a confirmation dialog
+- Use `action hotkey --keys Alt F4` as an alternative
+- For force close, use PowerShell: `Stop-Process -Name Notepad -Force`
+
+### Notepad Save Dialog
+
+The Save dialog contains multiple ComboBox types:
+- **File name ComboBox**: Custom control (`AppControlHost`), limited functionality
+- **File type ComboBox**: Custom control (`AppControlHost`), limited functionality
+- **Encoding ComboBox**: Standard Win32 ComboBox, full functionality
+
+---
+
 ## Test Checklist
+
+### Window Management
+
+| Feature | Command | Status |
+|------|------|------|
+| List windows | `window list` | ☑ |
+| Focus window | `window --window-id <id> focus` | ☑ |
+| Close window | `window --window-id <id> close` | ☑ |
+| Minimize window | `window --window-id <id> minimize` | ☐ |
+| Maximize window | `window --window-id <id> maximize` | ☐ |
+| Restore window | `window --window-id <id> restore` | ☐ |
+| Move window | `window --window-id <id> move --x --y` | ☐ |
+| Resize window | `window --window-id <id> resize --width --height` | ☐ |
+
+### Action Operations
+
+| Feature | Command | Status |
+|------|------|------|
+| Type text | `action --window-id <id> type --text` | ☑ |
+| Press key | `action --window-id <id> press-key --key` | ☑ |
+| Hotkey | `action --window-id <id> hotkey --keys` | ☑ |
+| Click | `action --window-id <id> click --x --y` | ☐ |
+| Drag | `action --window-id <id> drag --x1 --y1 --x2 --y2` | ☐ |
+| Clear text | `action --window-id <id> clear-text` | ☐ |
+
+### Snapshot Operations
+
+| Feature | Command | Status |
+|------|------|------|
+| UIA snapshot | `snapshot --window-id <id> uia` | ☑ |
+| HWND snapshot | `snapshot --window-id <id> hwnd` | ☑ |
+| OCR snapshot | `snapshot --window-id <id> ocr` | ☐ |
+
+### Find Operations
+
+| Feature | Command | Status |
+|------|------|------|
+| Find by text | `find --window-id <id> text` | ☐ |
+| Find UIA by text | `find --window-id <id> uia --text` | ☑ |
+| Find UIA by control type | `find --window-id <id> uia --control-type` | ☑ |
+| Find by OCR | `find --window-id <id> ocr` | ☐ |
+| Find by image | `find --window-id <id> image` | ☐ |
+
+### Screenshot
+
+| Feature | Command | Status |
+|------|------|------|
+| Full window | `screenshot --window-id <id> --output` | ☑ |
+| Region | `screenshot --window-id <id> --x --y --width --height` | ☐ |
 
 ### Win32Driver
 
@@ -329,23 +593,24 @@ python scripts\winguictl.py uia-control --window-id 4727732 --element-id equalBu
 
 | Feature | Command | Status |
 |------|------|------|
-| Single click | `click` | ☐ |
+| Single click | `click` | ☑ |
 | Double click | `double-click` | ☐ |
 | Right click | `right-click` | ☐ |
+| Invoke | `invoke` | ☐ |
 | Type keys | `type-keys` | ☐ |
 | Set text | `set-text` | ☐ |
 | Get text | `get-text` | ☐ |
 | Set focus | `set-focus` | ☐ |
 | Scroll | `scroll` | ☐ |
-| Expand | `expand` | ☐ |
+| Expand | `expand` | ☑ |
 | Collapse | `collapse` | ☐ |
 | Is expanded | `is-expanded` | ☐ |
 | Toggle state | `toggle` | ☐ |
 | Get toggle state | `get-toggle-state` | ☐ |
-| Combobox select | `combo-select` | ☐ |
-| Combobox items | `combo-items` | ☐ |
-| Combobox selected index | `combo-selected-index` | ☐ |
-| Combobox selected text | `combo-selected-text` | ☐ |
+| Combobox select | `combo-select` | ☑ |
+| Combobox items | `combo-items` | ☑ |
+| Combobox selected index | `combo-selected-index` | ☑ |
+| Combobox selected text | `combo-selected-text` | ☑ |
 | Slider value | `slider-value` | ☐ |
 | Set slider value | `slider-set` | ☐ |
 | Slider minimum | `slider-min` | ☐ |

@@ -1,18 +1,22 @@
 [MASTER]
-extension-pkg-allow-list=win32api,win32con,win32gui,win32ui,win32process,wx_ocr
+extension-pkg-allow-list=win32api,win32con,win32gui,win32ui,win32process,wx_ocr,PIL
 
 [MESSAGES CONTROL]
 disable=
-    C0114,
-    C0115,
-    C0116,
     C0301,
     C0415,
+    W0107,
     W0611,
+    W0201,
+    W2301,
     I1101,
     R0902,
+    R0903,
     R0904,
+    R0912,
     R0913,
+    R0914,
+    R0915,
     R0917,
     R1702
 
@@ -24,3 +28,6 @@ max-locals=25
 max-branches=35
 max-statements=80
 max-public-methods=35
+
+[SIMILARITIES]
+min-similarity-lines=4

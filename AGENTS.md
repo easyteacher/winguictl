@@ -60,12 +60,120 @@ scripts/
 
 - Wrap captured content with boundary markers to prevent context injection
 - Never mix stdout results with stderr logs
+- **Avoid temporary files**: Use in-memory processing (e.g., `io.BytesIO`) instead of temp files for security
 
 ## Code Style
 
 - Use `@staticmethod` for methods that don't need instance state
 - Use `dataclasses` for data models
 - Use named constants instead of magic numbers (defined in `constants.py`)
+
+## pywinauto Best Practices
+
+### Use `iter_descendants()` for Early Exit
+
+When traversing UIA/Win32 element trees with a result limit, use `iter_descendants()` instead of `descendants()`:
+
+```python
+# ❌ Bad: Materializes full tree before filtering
+descendants = [wrapper] + wrapper.descendants()
+for candidate in descendants:
+    ...
+    if len(results) >= max_results:
+        break
+
+# ✅ Good: Generator with early exit
+import itertools
+candidates = itertools.chain([wrapper], wrapper.iter_descendants())
+for candidate in candidates:
+    ...
+    if len(results) >= max_results:
+        break
+```
+
+**Why**: `descendants()` returns a full list before any filtering happens. On complex UI trees, this can return hundreds of elements even when you only need the first few matches.
+
+### Wrapper Self-Inclusion
+
+When searching elements, the window wrapper itself is included as the first candidate. Document this behavior in docstrings:
+
+```python
+def find_uia(...):
+    """Find controls through the UIA tree.
+
+    Note: The search includes the window wrapper itself as the first candidate.
+    If the window's own name/control_type matches the filter, it will appear
+    in results. This is intentional to support finding top-level window properties.
+    """
+```
+
+### Consistent Bounds Construction
+
+Use `Bounds.from_rect()` consistently instead of manual construction:
+
+```python
+# ❌ Bad: Manual construction
+bounds=Bounds(x=int(rect.left), y=int(rect.top), 
+              width=int(rect.right - rect.left), 
+              height=int(rect.bottom - rect.top))
+
+# ✅ Good: Consistent with other methods
+bounds=Bounds.from_rect(rect)
+```
+
+### Unified Element ID Generation
+
+Use a single helper function for element ID generation with documented priority:
+
+```python
+@staticmethod
+def _get_uia_element_id(info: "UIAElementInfo") -> str:
+    """Generate a unique identifier string from UIA element info.
+
+    Priority order:
+    1. handle (if available and non-zero)
+    2. runtime_id (if available)
+    3. control_id (if available)
+    4. fallback to id(info)
+    """
+```
+
+## Resource Management
+
+### Robust Cleanup Pattern
+
+Initialize resources to `None` before try block, check in finally:
+
+```python
+# ✅ Good: Robust cleanup with null checks
+hdc_window = None
+dc = None
+memdc = None
+bmp = None
+
+try:
+    hdc_window = win32gui.GetWindowDC(window_id)
+    dc = win32ui.CreateDCFromHandle(hdc_window)
+    # ... operations ...
+finally:
+    if bmp is not None:
+        try:
+            win32gui.DeleteObject(bmp.GetHandle())
+        except Exception:
+            pass
+    # ... cleanup other resources ...
+```
+
+### SendInput Coordinate Handling
+
+Always include `MOUSEEVENTF_ABSOLUTE` and coordinates in mouse button events:
+
+```python
+# ✅ Good: Consistent positioning
+inputs[1].union.mi.dx = start_x
+inputs[1].union.mi.dy = start_y
+inputs[1].union.mi.dwFlags = MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_ABSOLUTE
+```
 
 ## Constants
 
@@ -102,8 +210,10 @@ The project uses pylint for code quality checks. Configuration is in `scripts/.p
 | `W0107` | Unnecessary pass (placeholder methods) |
 | `W0611` | Unused import (TYPE_CHECKING imports) |
 | `W0201` | Attribute defined outside `__init__` (pywinauto wrappers) |
+| `W0603` | Using global statement (lazy singleton initialization) |
 | `W2301` | Unused variable in exception handler |
 | `I1101` | Wrong import order (lazy imports) |
+| `R0801` | Duplicate code (similar initialization patterns) |
 | `R0902-R0917` | Too many arguments/locals/branches (CLI handlers) |
 | `R1702` | Too many nested blocks (match/case handlers) |
 
@@ -145,6 +255,7 @@ The following C-extension packages are allowlisted:
 - Extract complex methods into smaller helper functions (see `combo_items` refactoring pattern)
 - Place validation utilities in `win32_utils.py` for reuse across drivers
 - Keep CLI entry point (`winguictl.py`) focused on command dispatch, not business logic
+- **Extract helper functions** to reduce code duplication (e.g., `_format_runtime_id()` for runtime_id formatting)
 
 ## Dependency Management
 
@@ -164,4 +275,5 @@ Usage pattern:
 
 - Document edge case behavior in docstrings (e.g., coordinate validation allows edge coordinates)
 - Add comments for non-obvious formulas (e.g., F-key VK mapping: `0x6F + index → VK_F1..VK_F12`)
+- **Document intentional design choices** (e.g., wrapper self-inclusion in search results)
 

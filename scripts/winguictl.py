@@ -10,34 +10,43 @@ element finding, interaction operations, control manipulation, and screenshot ca
 """
 
 import argparse
-from typing import Optional
+import logging
+import sys
+from typing import TYPE_CHECKING, Optional
 
-from find_driver import FindDriver
 from models import ActionResult, ElementFormatter
-from ocr_driver import OCRDriver
 from output_utils import (
-    build_center_payload,
-    build_control_info,
-    build_point_context,
-    build_uia_control_info,
     emit,
     emit_action,
     emit_action_result,
-    format_window_tree,
     generate_nonce,
-    resolve_window_context,
-    validate_relative_coords,
     wrap_with_boundary,
 )
-from uia_driver import UIADriver
-from win32_driver import Win32Driver
-from win32_utils import Win32API
-from windows_driver import WindowsDriver
+
+if TYPE_CHECKING:
+    from find_driver import FindDriver
+    from ocr_driver import OCRDriver
+    from output_utils import (
+        build_center_payload,
+        build_control_info,
+        build_point_context,
+        build_uia_control_info,
+        format_window_tree,
+        resolve_window_context,
+        validate_relative_coords,
+    )
+    from uia_driver import UIADriver
+    from win32_driver import Win32Driver
+    from win32_utils import Win32API
+    from windows_driver import WindowsDriver
+
+_logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(prog="winguictl", description="Windows automation CLI.")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable debug logging output")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     _build_window_parser(subparsers)
@@ -51,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _build_window_parser(subparsers) -> None:
+def _build_window_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the window subcommand parser."""
     p = subparsers.add_parser("window", help="Inspect and control desktop windows.")
     p.add_argument("--window-id", required=False)
@@ -70,7 +79,7 @@ def _build_window_parser(subparsers) -> None:
     resize.add_argument("--height", type=int, required=True)
 
 
-def _build_snapshot_parser(subparsers) -> None:
+def _build_snapshot_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the snapshot subcommand parser."""
     p = subparsers.add_parser("snapshot", help="Capture window structure snapshots.")
     p.add_argument("--window-id", required=True)
@@ -80,7 +89,7 @@ def _build_snapshot_parser(subparsers) -> None:
     sp.add_parser("ocr", help="Snapshot OCR text regions of a window.")
 
 
-def _build_find_parser(subparsers) -> None:
+def _build_find_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the find subcommand parser."""
     p = subparsers.add_parser("find", help="Resolve text or control targets inside a window.")
     p.add_argument("--window-id", required=True)
@@ -107,7 +116,7 @@ def _build_find_parser(subparsers) -> None:
     find_image.add_argument("--max-results", type=int, default=5)
 
 
-def _build_action_parser(subparsers) -> None:
+def _build_action_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the action subcommand parser."""
     p = subparsers.add_parser("action", help="Preview or run actions against a window.")
     p.add_argument("--window-id", required=True)
@@ -147,7 +156,7 @@ def _build_action_parser(subparsers) -> None:
     clear_text.add_argument("--dry-run", action="store_true")
 
 
-def _build_control_parser(subparsers) -> None:
+def _build_control_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the control subcommand parser (Win32 control operations)."""
     p = subparsers.add_parser("control", help="Directly control a specific control by hwnd.")
     p.add_argument("--hwnd", required=True, help="Control handle (hwnd).")
@@ -185,7 +194,7 @@ def _build_control_parser(subparsers) -> None:
     sp.add_parser("listbox-selected-indices", help="Get selected indices in a listbox.")
 
 
-def _build_uia_control_parser(subparsers) -> None:
+def _build_uia_control_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the uia-control subcommand parser (UIA element operations)."""
     p = subparsers.add_parser("uia-control", help="Control UIA elements by automation_id or runtime_id.")
     p.add_argument("--window-id", required=True, help="Parent window ID.")
@@ -245,7 +254,7 @@ def _build_uia_control_parser(subparsers) -> None:
     sp.add_parser("slider-max", help="Get slider maximum value.")
 
 
-def _build_screenshot_parser(subparsers) -> None:
+def _build_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the screenshot subcommand parser."""
     p = subparsers.add_parser("screenshot", help="Take a screenshot of a window.")
     p.add_argument("--window-id", required=True)
@@ -257,8 +266,11 @@ def _build_screenshot_parser(subparsers) -> None:
     p.add_argument("--dry-run", action="store_true")
 
 
-def _handle_window(args) -> int:
+def _handle_window(args: argparse.Namespace) -> int:
     """Handle window subcommands."""
+    from output_utils import format_window_tree
+    from windows_driver import WindowsDriver
+
     if args.window_command == "list":
         windows = WindowsDriver.list_windows()
         content = format_window_tree(windows)
@@ -283,8 +295,12 @@ def _handle_window(args) -> int:
     return 0
 
 
-def _handle_snapshot(args) -> int:
+def _handle_snapshot(args: argparse.Namespace) -> int:
     """Handle snapshot subcommands."""
+    from ocr_driver import OCRDriver
+    from uia_driver import UIADriver
+    from win32_driver import Win32Driver
+
     nonce = generate_nonce()
     match args.snapshot_command:
         case "hwnd":
@@ -301,8 +317,11 @@ def _handle_snapshot(args) -> int:
     return 0
 
 
-def _handle_find(args) -> int:
+def _handle_find(args: argparse.Namespace) -> int:
     """Handle find subcommands."""
+    from find_driver import FindDriver
+    from ocr_driver import OCRDriver
+
     nonce = generate_nonce()
     match args.find_command:
         case "text":
@@ -324,8 +343,18 @@ def _handle_find(args) -> int:
     return 0
 
 
-def _handle_action(args) -> int:
+def _handle_action(args: argparse.Namespace) -> int:
     """Handle action subcommands."""
+    from find_driver import FindDriver
+    from output_utils import (
+        build_center_payload,
+        build_point_context,
+        resolve_window_context,
+        validate_relative_coords,
+    )
+    from win32_utils import Win32API
+    from windows_driver import WindowsDriver
+
     match args.action_command:
         case "click":
             window_title, bounds = resolve_window_context(args.window_id)
@@ -417,8 +446,11 @@ def _handle_action(args) -> int:
     return 0
 
 
-def _handle_control(args) -> int:
+def _handle_control(args: argparse.Namespace) -> int:
     """Handle control subcommands (Win32 control operations)."""
+    from output_utils import build_control_info
+    from win32_driver import Win32Driver
+
     hwnd = int(args.hwnd)
     control_info = build_control_info(hwnd)
 
@@ -483,14 +515,17 @@ def _handle_control(args) -> int:
                 emit_action(True, "listbox_selected_indices", {**control_info, "indices": indices})
             case _:
                 return -1
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         emit_action(False, args.control_command, {**control_info, "error": str(e)})
         return 1
     return 0
 
 
-def _handle_uia_control(args) -> int:
+def _handle_uia_control(args: argparse.Namespace) -> int:
     """Handle uia-control subcommands (UIA element operations)."""
+    from output_utils import build_uia_control_info
+    from uia_driver import UIADriver
+
     wid = args.window_id
     eid = args.element_id
     uia_info = build_uia_control_info(wid, eid)
@@ -592,14 +627,16 @@ def _handle_uia_control(args) -> int:
                 emit_action(True, "slider_max", {**uia_info, "value": value})
             case _:
                 return -1
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         emit_action(False, args.uia_control_command, {**uia_info, "error": str(e)})
         return 1
     return 0
 
 
-def _handle_screenshot(args) -> int:
+def _handle_screenshot(args: argparse.Namespace) -> int:
     """Handle screenshot subcommands."""
+    from windows_driver import WindowsDriver
+
     rect = None
     if args.x is not None and args.y is not None and args.width is not None and args.height is not None:
         rect = (args.x, args.y, args.width, args.height)
@@ -616,22 +653,39 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     try:
         args = parser.parse_args(argv)
-        handler_map = {
-            "window": _handle_window,
-            "snapshot": _handle_snapshot,
-            "find": _handle_find,
-            "action": _handle_action,
-            "control": _handle_control,
-            "uia-control": _handle_uia_control,
-            "screenshot": _handle_screenshot,
-        }
-        handler = handler_map.get(args.command)
-        if handler is None:
-            parser.error(f"unknown command: {args.command}")
-            return 1
+    except SystemExit:
+        return 1
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.WARNING,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        stream=sys.stderr,
+    )
+
+    handler_map = {
+        "window": _handle_window,
+        "snapshot": _handle_snapshot,
+        "find": _handle_find,
+        "action": _handle_action,
+        "control": _handle_control,
+        "uia-control": _handle_uia_control,
+        "screenshot": _handle_screenshot,
+    }
+    handler = handler_map.get(args.command)
+    if handler is None:
+        _logger.error("unknown command: %s", args.command)
+        emit(ActionResult(ok=False, code="ERROR", message=f"unknown command: {args.command}").to_dict())
+        return 1
+
+    try:
         result = handler(args)
         return result if result >= 0 else 1
-    except Exception as e:
+    except ValueError as e:
+        _logger.debug("validation error: %s", e)
+        emit(ActionResult(ok=False, code="VALIDATION_ERROR", message=str(e)).to_dict())
+        return 1
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        _logger.exception("unexpected error: %s", e)
         emit(ActionResult(ok=False, code="ERROR", message=str(e)).to_dict())
         return 1
 

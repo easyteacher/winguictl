@@ -11,6 +11,7 @@ and combobox/list/tab/slider operations.
 Also provides snapshot functionality for UIA element trees.
 """
 
+import logging
 from typing import Any, Optional
 
 from pywinauto import Desktop
@@ -18,11 +19,13 @@ from pywinauto.uia_element_info import UIAElementInfo
 
 from models import ElementFormatter
 
+_logger = logging.getLogger(__name__)
+
 
 class UIADriver:
 
     @staticmethod
-    def _get_uia_wrapper(window_id: str, element_id: str) -> "HwndWrapper":
+    def _get_uia_wrapper(window_id: str, element_id: str):
         """Find and return the UIA element wrapper based on element_id.
 
         Search strategy:
@@ -35,7 +38,7 @@ class UIADriver:
             element_id: Element identifier (automation_id or runtime_id)
 
         Returns:
-            Matched pywinauto UIA wrapper
+            Matched pywinauto UIA wrapper (UiaWrapper)
 
         Raises:
             ValueError: No matching element found
@@ -50,8 +53,8 @@ class UIADriver:
                 rid = getattr(raw, "runtime_id", None)
                 if rid is not None:
                     return "-".join(str(x) for x in rid)
-            except Exception:
-                pass
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                _logger.debug("failed to get runtime_id: %s", e)
             return None
 
         def get_automation_id(info) -> Optional[str]:
@@ -60,8 +63,8 @@ class UIADriver:
                 aid = getattr(raw, "automation_id", None)
                 if aid:
                     return aid.strip()
-            except Exception:
-                pass
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                _logger.debug("failed to get automation_id: %s", e)
             return None
 
         query = element_id.strip()
@@ -72,9 +75,6 @@ class UIADriver:
             rid = get_runtime_id(info)
             if rid == query:
                 return candidate
-
-        for candidate in descendants:
-            info = candidate.element_info
             aid = get_automation_id(info)
             if aid and aid == query:
                 return candidate
@@ -83,10 +83,10 @@ class UIADriver:
             candidate = wrapper.child_window(automation_id=element_id, found_index=0)
             candidate.wait("visible", timeout=3)
             return candidate
-        except Exception:
-            pass
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            _logger.debug("child_window search for automation_id=%s failed: %s", element_id, e)
 
-        raise ValueError("UIA element not found: %s" % element_id)
+        raise ValueError(f"UIA element not found: {element_id}")
 
     @staticmethod
     def click(window_id: str, element_id: str) -> None:
@@ -119,7 +119,7 @@ class UIADriver:
         wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
         try:
             wrapper.set_text(text, 0, len(text))
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             wrapper.iface_value.SetValue(text)
 
     @staticmethod
@@ -183,7 +183,7 @@ class UIADriver:
         """Check whether the UIA element is in expanded state."""
         try:
             return UIADriver._get_uia_wrapper(window_id, element_id).is_expanded()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             return False
 
     @staticmethod
@@ -192,7 +192,7 @@ class UIADriver:
         UIADriver._get_uia_wrapper(window_id, element_id).select(item)
 
     @staticmethod
-    def combo_items(window_id: str, element_id: str) -> list[str]:
+    def combo_items(window_id: str, element_id: str) -> list[str]:  # pylint: disable=too-many-locals,too-many-branches,too-many-nested-blocks
         """Get all item texts in a UIA combobox.
 
         Strategy:
@@ -209,19 +209,19 @@ class UIADriver:
             combo_right = combo_rect.right
             combo_top = combo_rect.top
             combo_bottom = combo_rect.bottom
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             combo_left = combo_right = combo_top = combo_bottom = 0
 
         was_expanded = False
         try:
             was_expanded = wrapper.is_expanded()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
 
         if not was_expanded:
             try:
                 wrapper.expand()
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 pass
 
         try:
@@ -234,7 +234,7 @@ class UIADriver:
                     name = getattr(item.element_info, "name", "")
                     if name:
                         items.append(name)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
 
         if not items:
@@ -250,7 +250,7 @@ class UIADriver:
                         try:
                             if child.element_info.control_type == "ListItem":
                                 all_list_items.append(child)
-                        except Exception:
+                        except Exception:  # pylint: disable=broad-exception-caught
                             pass
 
                 for item in all_list_items:
@@ -266,15 +266,15 @@ class UIADriver:
                                 name = getattr(item.element_info, "name", "")
                                 if name:
                                     items.append(name)
-                    except Exception:
+                    except Exception:  # pylint: disable=broad-exception-caught
                         pass
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 pass
 
         if not was_expanded:
             try:
                 wrapper.collapse()
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 pass
 
         if items:
@@ -284,7 +284,7 @@ class UIADriver:
             texts = wrapper.texts()
             if texts:
                 return texts
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
 
         return items
@@ -295,20 +295,20 @@ class UIADriver:
         wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
         try:
             return wrapper.selected_text()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
 
         try:
             selection = wrapper.get_selection()
             if selection:
                 return selection[0].name
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
 
         return None
 
     @staticmethod
-    def combo_selected_index(window_id: str, element_id: str) -> int:
+    def combo_selected_index(window_id: str, element_id: str) -> int:  # pylint: disable=too-many-return-statements
         """Get the selected item index in a UIA combobox.
 
         Strategy:
@@ -320,7 +320,7 @@ class UIADriver:
 
         try:
             return wrapper.selected_index()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
 
         selected_text = UIADriver.combo_selected_text(window_id, element_id)
@@ -415,7 +415,7 @@ class UIADriver:
             try:
                 for child in element.children():
                     walk(child, level + 1)
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 pass
 
         walk(wrapper, 0)
@@ -433,7 +433,6 @@ class UIADriver:
             Dictionary with element information or None if no element found
         """
         try:
-            from pywinauto.uia_element_info import UIAElementInfo
             element_info = UIAElementInfo.from_point(absolute_x, absolute_y)
             if element_info is None:
                 return None
@@ -455,5 +454,5 @@ class UIADriver:
                 result["runtime_id"] = "-".join(str(x) for x in runtime_id)
 
             return result
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             return None

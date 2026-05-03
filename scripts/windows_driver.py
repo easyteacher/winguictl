@@ -10,6 +10,7 @@ position movement, size adjustment, and screenshot capabilities.
 Underlying implementation uses pywinauto's HwndWrapper for window operations.
 """
 
+import logging
 import os
 from pathlib import Path
 from typing import Optional, Tuple
@@ -24,6 +25,8 @@ from pywinauto.win32_element_info import HwndElementInfo
 
 from models import Bounds, WindowInfo
 from win32_utils import Win32API
+
+_logger = logging.getLogger(__name__)
 
 IMMUNE_CLASS_NAMES = frozenset({"IME", "Default IME", "MSCTFIME UI"})
 
@@ -55,7 +58,8 @@ class WindowsDriver:
             wrapper = WindowsDriver._wrap(window_id)
             getattr(wrapper, action_name)(**kwargs)
             return True
-        except Exception:
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            _logger.debug("window action %s failed for window_id=%s: %s", action_name, window_id, e)
             return False
 
     @staticmethod
@@ -70,7 +74,7 @@ class WindowsDriver:
             full_path = win32process.GetModuleFileNameEx(process_handle, 0)
             win32api.CloseHandle(process_handle)
             return os.path.basename(full_path) if full_path else None
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             return None
 
     @staticmethod
@@ -118,7 +122,7 @@ class WindowsDriver:
                         parent_hwnd=parent_hwnd if parent_hwnd else None,
                     )
                 )
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 continue
         return windows
 
@@ -154,13 +158,17 @@ class WindowsDriver:
 
     @staticmethod
     def resize_window(window_id: str, width: int, height: int) -> bool:
-        """Resize the window while preserving its current position."""
+        """Resize the window while preserving its current position.
+
+        Note: pywinauto's move_window requires both position and size together,
+        so we need to get the current position before resizing.
+        """
         try:
             wrapper = WindowsDriver._wrap(window_id)
             rect = wrapper.rectangle()
             wrapper.move_window(x=rect.left, y=rect.top, width=width, height=height)
             return True
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             return False
 
     @staticmethod
@@ -174,12 +182,19 @@ class WindowsDriver:
 
         Returns:
             Absolute path of the saved file
+
+        Raises:
+            ValueError: If crop region is outside window bounds
         """
         hwnd = int(window_id)
         output_path = Path(output)
         win_x, win_y, win_width, win_height, data = Win32API.capture_window_bgra(hwnd)
         if rect:
             x, y, width, height = rect
+            if x < 0 or y < 0 or width <= 0 or height <= 0:
+                raise ValueError(f"Invalid crop region: x={x}, y={y}, width={width}, height={height}")
+            if x + width > win_width or y + height > win_height:
+                raise ValueError(f"Crop region outside window bounds: window is {win_width}x{win_height}, crop region is {x},{y} {width}x{height}")
             cropped = bytearray()
             for row in range(y, y + height):
                 src_start = row * win_width * 4 + x * 4

@@ -13,6 +13,7 @@ falling back to ctypes only for interfaces not wrapped by pywin32
 """
 
 import ctypes
+import logging
 import time
 import zlib
 from pathlib import Path
@@ -25,6 +26,8 @@ import win32ui
 
 from constants import VK_CODE_MAP
 from models import Bounds
+
+_logger = logging.getLogger(__name__)
 
 PW_RENDERFULLCONTENT = 0x00000002
 
@@ -76,15 +79,30 @@ class Win32API:
         try:
             hwnd = win32gui.WindowFromPoint((x, y))
             return hwnd if hwnd else None
-        except Exception:
+        except win32gui.error as e:
+            _logger.debug("Win32 error getting window from point (%d, %d): %s", x, y, e)
+            return None
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            _logger.exception("Unexpected error getting window from point (%d, %d)", x, y)
             return None
 
     @staticmethod
     def get_window_bounds(hwnd: int) -> Optional[Bounds]:
-        """Get window screen coordinates and dimensions."""
+        """Get window screen coordinates and dimensions.
+
+        Args:
+            hwnd: Window handle
+
+        Returns:
+            Bounds object or None on failure
+        """
         try:
             left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-        except Exception:
+        except win32gui.error as e:
+            _logger.debug("Win32 error getting window bounds for hwnd %d: %s", hwnd, e)
+            return None
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            _logger.exception("Unexpected error getting window bounds for hwnd %d", hwnd)
             return None
         return Bounds(
             x=int(left),
@@ -148,7 +166,7 @@ class Win32API:
     @staticmethod
     def write_png(output: Path, width: int, height: int, bgra_data: bytearray) -> None:
         """Write BGRA pixel data to a PNG file (pure Python, no third-party libs)."""
-        import struct
+        import struct  # pylint: disable=import-outside-toplevel
 
         def crc32(data: bytes) -> int:
             return zlib.crc32(data) & 0xFFFFFFFF
@@ -173,7 +191,7 @@ class Win32API:
     @staticmethod
     def write_bmp(output: Path, width: int, height: int, bgra_data: bytearray) -> None:
         """Write BGRA pixel data to a BMP file."""
-        import struct
+        import struct  # pylint: disable=import-outside-toplevel
 
         row_size = (width * 4 + 3) & ~3
         image_size = row_size * height

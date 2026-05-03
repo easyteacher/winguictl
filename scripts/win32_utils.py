@@ -15,24 +15,86 @@ falling back to ctypes only for interfaces not wrapped by pywin32
 import ctypes
 import logging
 import time
-import zlib
+from ctypes import wintypes
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 import win32api
 import win32con
 import win32gui
 import win32ui
+from PIL import Image
 
-from constants import VK_CODE_MAP
+from constants import (
+    DEFAULT_CLICK_DELAY_MS,
+    DEFAULT_DRAG_START_DELAY_MS,
+    DEFAULT_HOTKEY_DELAY_MS,
+    DEFAULT_KEY_DELAY_MS,
+    SENDINPUT_ABSOLUTE_MAX,
+    VK_CODE_MAP,
+)
 from models import Bounds
 
 _logger = logging.getLogger(__name__)
+
+# SendInput structures for modern input simulation
+class MOUSEINPUT(ctypes.Structure):
+    """Mouse input structure for SendInput API."""
+
+    _fields_ = [
+        ("dx", wintypes.LONG),
+        ("dy", wintypes.LONG),
+        ("mouseData", wintypes.DWORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.POINTER(wintypes.ULONG)),
+    ]
+
+
+class KEYBDINPUT(ctypes.Structure):
+    """Keyboard input structure for SendInput API."""
+
+    _fields_ = [
+        ("wVk", wintypes.WORD),
+        ("wScan", wintypes.WORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.POINTER(wintypes.ULONG)),
+    ]
+
+
+class InputUnion(ctypes.Union):
+    """Union of mouse and keyboard input structures."""
+
+    _fields_ = [
+        ("mi", MOUSEINPUT),
+        ("ki", KEYBDINPUT),
+    ]
+
+
+class INPUT(ctypes.Structure):
+    """Input structure for SendInput API."""
+
+    _fields_ = [
+        ("type", wintypes.DWORD),
+        ("union", InputUnion),
+    ]
+
+
+INPUT_MOUSE = 0
+INPUT_KEYBOARD = 1
+MOUSEEVENTF_MOVE = 0x0001
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_ABSOLUTE = 0x8000
+KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_UNICODE = 0x0004
 
 PW_RENDERFULLCONTENT = 0x00000002
 
 
 class Win32API:
+    """Win32 API wrapper class for low-level operations."""
 
     @staticmethod
     def get_window_text(hwnd: int) -> str:
@@ -58,11 +120,13 @@ class Win32API:
             Top-level window handle (may be the same as input if already top-level)
         """
         current = hwnd
-        while True:
+        max_iterations = 1000
+        for _ in range(max_iterations):
             parent = win32gui.GetParent(current)
             if parent == 0 or parent is None:
                 return current
             current = parent
+        _logger.warning("get_top_level_window: max iterations reached for hwnd %d", hwnd)
         return current
 
     @staticmethod
@@ -79,10 +143,10 @@ class Win32API:
         try:
             hwnd = win32gui.WindowFromPoint((x, y))
             return hwnd if hwnd else None
-        except win32gui.error as e:
-            _logger.debug("Win32 error getting window from point (%d, %d): %s", x, y, e)
+        except win32gui.error as err:
+            _logger.debug("Win32 error getting window from point (%d, %d): %s", x, y, err)
             return None
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception:  # pylint: disable=broad-exception-caught
             _logger.exception("Unexpected error getting window from point (%d, %d)", x, y)
             return None
 
@@ -98,10 +162,10 @@ class Win32API:
         """
         try:
             left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-        except win32gui.error as e:
-            _logger.debug("Win32 error getting window bounds for hwnd %d: %s", hwnd, e)
+        except win32gui.error as err:
+            _logger.debug("Win32 error getting window bounds for hwnd %d: %s", hwnd, err)
             return None
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception:  # pylint: disable=broad-exception-caught
             _logger.exception("Unexpected error getting window bounds for hwnd %d", hwnd)
             return None
         return Bounds(
@@ -112,7 +176,7 @@ class Win32API:
         )
 
     @staticmethod
-    def get_window_state(hwnd: int) -> Tuple[bool, bool]:
+    def get_window_state(hwnd: int) -> tuple[bool, bool]:
         """Get window minimized/maximized state.
 
         Returns:
@@ -125,7 +189,7 @@ class Win32API:
         return is_minimized, is_maximized
 
     @staticmethod
-    def capture_window_bgra(window_id: int) -> Tuple[int, int, int, int, bytearray]:
+    def capture_window_bgra(window_id: int) -> tuple[int, int, int, int, bytearray]:
         """Capture window screenshot, returning BGRA pixel data.
 
         Uses win32gui/win32ui to obtain the window DC and create a bitmap.
@@ -135,14 +199,13 @@ class Win32API:
         Returns:
             (x, y, width, height, bgra_data) tuple
         """
-        hwnd = int(window_id)
-        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+        left, top, right, bottom = win32gui.GetWindowRect(window_id)
         x, y = int(left), int(top)
         width, height = int(right - left), int(bottom - top)
         if width <= 0 or height <= 0:
             raise RuntimeError(f"invalid window size: {width}x{height}")
 
-        hdc_window = win32gui.GetWindowDC(hwnd)
+        hdc_window = win32gui.GetWindowDC(window_id)
         dc = win32ui.CreateDCFromHandle(hdc_window)
         memdc = dc.CreateCompatibleDC()
         bmp = win32ui.CreateBitmap()
@@ -150,84 +213,116 @@ class Win32API:
         memdc.SelectObject(bmp)
 
         try:
-            result = ctypes.windll.user32.PrintWindow(hwnd, memdc.GetSafeHdc(), PW_RENDERFULLCONTENT)
+            result = ctypes.windll.user32.PrintWindow(window_id, memdc.GetSafeHdc(), PW_RENDERFULLCONTENT)
             if not result:
+                _logger.debug("PrintWindow failed for hwnd %d, falling back to BitBlt", window_id)
                 memdc.BitBlt((0, 0), (width, height), dc, (0, 0), win32con.SRCCOPY)
 
             bits = bmp.GetBitmapBits(True)
+            if not bits:
+                raise RuntimeError(f"failed to capture window bitmap for hwnd {window_id}")
             data = bytearray(bits)
         finally:
             win32gui.DeleteObject(bmp.GetHandle())
             memdc.DeleteDC()
             dc.DeleteDC()
-            win32gui.ReleaseDC(hwnd, hdc_window)
+            win32gui.ReleaseDC(window_id, hdc_window)
         return x, y, width, height, data
 
     @staticmethod
-    def write_png(output: Path, width: int, height: int, bgra_data: bytearray) -> None:
-        """Write BGRA pixel data to a PNG file (pure Python, no third-party libs)."""
-        import struct  # pylint: disable=import-outside-toplevel
+    def write_image(output: Path, width: int, height: int, bgra_data: bytearray, fmt: str = "PNG") -> None:
+        """Write BGRA pixel data to an image file using Pillow.
 
-        def crc32(data: bytes) -> int:
-            return zlib.crc32(data) & 0xFFFFFFFF
-
-        def chunk(chunk_type: bytes, data: bytes) -> bytes:
-            chunk_data = chunk_type + data
-            return struct.pack(">I", len(data)) + chunk_data + struct.pack(">I", crc32(chunk_data))
-
-        raw = bytearray()
-        row_size = width * 4
-        for y in range(height):
-            raw.append(0)
-            raw.extend(bgra_data[y * row_size : (y + 1) * row_size])
-        compressed = zlib.compress(bytes(raw))
-        ihdr_data = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
-        signature = b"\x89PNG\r\n\x1a\n"
-        ihdr = chunk(b"IHDR", ihdr_data)
-        idat = chunk(b"IDAT", compressed)
-        iend = chunk(b"IEND", b"")
-        output.write_bytes(signature + ihdr + idat + iend)
-
-    @staticmethod
-    def write_bmp(output: Path, width: int, height: int, bgra_data: bytearray) -> None:
-        """Write BGRA pixel data to a BMP file."""
-        import struct  # pylint: disable=import-outside-toplevel
-
-        row_size = (width * 4 + 3) & ~3
-        image_size = row_size * height
-        header_size = 54
-        file_size = header_size + image_size
-        bmp_data = bytearray(file_size)
-        struct.pack_into("<2sIHHI", bmp_data, 0, b"BM", file_size, 0, 0, header_size)
-        struct.pack_into("<IiiHHIIiiII", bmp_data, 14, 40, width, height, 1, 32, 0, image_size, 0, 0, 0, 0)
-        for y in range(height):
-            src_offset = y * width * 4
-            dst_offset = header_size + (height - 1 - y) * row_size
-            bmp_data[dst_offset : dst_offset + width * 4] = bgra_data[src_offset : src_offset + width * 4]
-        output.write_bytes(bytes(bmp_data))
+        Args:
+            output: Output file path
+            width: Image width in pixels
+            height: Image height in pixels
+            bgra_data: BGRA pixel data as bytearray
+            fmt: Image format (PNG, BMP, etc.)
+        """
+        img = Image.frombytes("RGBA", (width, height), bytes(bgra_data), "raw", "BGRA")
+        img.save(output, fmt.upper())
 
     @staticmethod
     def send_click(x: int, y: int) -> None:
-        """Perform a left mouse button click at the specified screen coordinates."""
-        win32api.SetCursorPos((x, y))
-        time.sleep(0.05)
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+        """Perform a left mouse button click at the specified screen coordinates.
+
+        Uses SendInput API for better DPI scaling and multi-monitor support.
+        """
+        width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+        height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+        nx = int(x * SENDINPUT_ABSOLUTE_MAX / width) if width > 0 else 0
+        ny = int(y * SENDINPUT_ABSOLUTE_MAX / height) if height > 0 else 0
+
+        inputs = (INPUT * 3)()
+        inputs[0].type = INPUT_MOUSE
+        inputs[0].union.mi.dx = nx
+        inputs[0].union.mi.dy = ny
+        inputs[0].union.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE
+        inputs[1].type = INPUT_MOUSE
+        inputs[1].union.mi.dx = nx
+        inputs[1].union.mi.dy = ny
+        inputs[1].union.mi.dwFlags = MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_ABSOLUTE
+        inputs[2].type = INPUT_MOUSE
+        inputs[2].union.mi.dx = nx
+        inputs[2].union.mi.dy = ny
+        inputs[2].union.mi.dwFlags = MOUSEEVENTF_LEFTUP | MOUSEEVENTF_ABSOLUTE
+
+        ctypes.windll.user32.SendInput(3, ctypes.byref(inputs), ctypes.sizeof(INPUT))
 
     @staticmethod
     def send_drag(x1: int, y1: int, x2: int, y2: int, duration_ms: int = 500) -> None:
-        """Drag from (x1,y1) to (x2,y2), moving smoothly over the specified duration."""
+        """Drag from (x1,y1) to (x2,y2), moving smoothly over the specified duration.
+
+        Uses SendInput API for better DPI scaling and multi-monitor support.
+        """
+        width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+        height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+
+        def to_absolute(x: int, y: int) -> tuple[int, int]:
+            nx = int(x * SENDINPUT_ABSOLUTE_MAX / width) if width > 0 else 0
+            ny = int(y * SENDINPUT_ABSOLUTE_MAX / height) if height > 0 else 0
+            return nx, ny
+
         steps = max(1, duration_ms // 16)
-        win32api.SetCursorPos((x1, y1))
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-        time.sleep(0.05)
+
+        start_x, start_y = to_absolute(x1, y1)
+        inputs = (INPUT * 2)()
+        inputs[0].type = INPUT_MOUSE
+        inputs[0].union.mi.dx = start_x
+        inputs[0].union.mi.dy = start_y
+        inputs[0].union.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE
+        inputs[1].type = INPUT_MOUSE
+        inputs[1].union.mi.dwFlags = MOUSEEVENTF_LEFTDOWN
+        ctypes.windll.user32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+        time.sleep(DEFAULT_DRAG_START_DELAY_MS / 1000)
+
         for i in range(1, steps + 1):
             t = i / steps
             cx = int(x1 + (x2 - x1) * t)
             cy = int(y1 + (y2 - y1) * t)
-            win32api.SetCursorPos((cx, cy))
+            ax, ay = to_absolute(cx, cy)
+
+            move_input = INPUT()
+            move_input.type = INPUT_MOUSE
+            move_input.union.mi.dx = ax
+            move_input.union.mi.dy = ay
+            move_input.union.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE
+            ctypes.windll.user32.SendInput(1, ctypes.byref(move_input), ctypes.sizeof(INPUT))
             time.sleep(duration_ms / 1000 / steps)
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+
+        end_x, end_y = to_absolute(x2, y2)
+        release_input = INPUT()
+        release_input.type = INPUT_MOUSE
+        release_input.union.mi.dx = end_x
+        release_input.union.mi.dy = end_y
+        release_input.union.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE
+        ctypes.windll.user32.SendInput(1, ctypes.byref(release_input), ctypes.sizeof(INPUT))
+
+        up_input = INPUT()
+        up_input.type = INPUT_MOUSE
+        up_input.union.mi.dwFlags = MOUSEEVENTF_LEFTUP
+        ctypes.windll.user32.SendInput(1, ctypes.byref(up_input), ctypes.sizeof(INPUT))
 
     @staticmethod
     def move_mouse_to_window_center(window_id: int) -> None:
@@ -242,15 +337,21 @@ class Win32API:
         center_x = bounds.x + bounds.width // 2
         center_y = bounds.y + bounds.height // 2
         win32api.SetCursorPos((center_x, center_y))
-        time.sleep(0.05)
+        time.sleep(DEFAULT_CLICK_DELAY_MS / 1000)
 
     @staticmethod
     def send_type_text(text: str) -> None:
-        """Type text character by character using Unicode keyboard events."""
+        """Type text character by character using Unicode keyboard events via SendInput."""
         for ch in text:
             code_point = ord(ch)
-            win32api.keybd_event(0, code_point, win32con.KEYEVENTF_UNICODE, 0)
-            win32api.keybd_event(0, code_point, win32con.KEYEVENTF_UNICODE | win32con.KEYEVENTF_KEYUP, 0)
+            inputs = (INPUT * 2)()
+            inputs[0].type = INPUT_KEYBOARD
+            inputs[0].union.ki.wScan = code_point
+            inputs[0].union.ki.dwFlags = KEYEVENTF_UNICODE
+            inputs[1].type = INPUT_KEYBOARD
+            inputs[1].union.ki.wScan = code_point
+            inputs[1].union.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
+            ctypes.windll.user32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(INPUT))
 
     @staticmethod
     def send_press_key(key: str) -> None:
@@ -258,28 +359,56 @@ class Win32API:
         virtual_key = VK_CODE_MAP.get(key.lower())
         if virtual_key is None:
             raise ValueError(f"unsupported key: {key}")
-        win32api.keybd_event(virtual_key, 0, 0, 0)
-        time.sleep(0.05)
-        win32api.keybd_event(virtual_key, 0, win32con.KEYEVENTF_KEYUP, 0)
+        inputs = (INPUT * 2)()
+        inputs[0].type = INPUT_KEYBOARD
+        inputs[0].union.ki.wVk = virtual_key
+        inputs[1].type = INPUT_KEYBOARD
+        inputs[1].union.ki.wVk = virtual_key
+        inputs[1].union.ki.dwFlags = KEYEVENTF_KEYUP
+        ctypes.windll.user32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+        time.sleep(DEFAULT_KEY_DELAY_MS / 1000)
 
     @staticmethod
     def send_hotkey(keys: list[str]) -> None:
-        """Press a key chord. Presses all keys in order, then releases in order."""
+        """Press a key chord. Presses all keys in order, then releases in reverse order."""
         virtual_keys = []
         for key in keys:
             vk = VK_CODE_MAP.get(key.lower())
             if vk is None:
                 raise ValueError(f"unsupported key: {key}")
             virtual_keys.append(vk)
-        for vk in virtual_keys:
-            win32api.keybd_event(vk, 0, 0, 0)
-            time.sleep(0.05)
-        for vk in virtual_keys:
-            win32api.keybd_event(vk, 0, win32con.KEYEVENTF_KEYUP, 0)
-            time.sleep(0.05)
+
+        down_inputs = (INPUT * len(virtual_keys))()
+        for i, vk in enumerate(virtual_keys):
+            down_inputs[i].type = INPUT_KEYBOARD
+            down_inputs[i].union.ki.wVk = vk
+        ctypes.windll.user32.SendInput(len(virtual_keys), ctypes.byref(down_inputs), ctypes.sizeof(INPUT))
+        time.sleep(DEFAULT_HOTKEY_DELAY_MS / 1000)
+
+        up_inputs = (INPUT * len(virtual_keys))()
+        for i, vk in enumerate(reversed(virtual_keys)):
+            up_inputs[i].type = INPUT_KEYBOARD
+            up_inputs[i].union.ki.wVk = vk
+            up_inputs[i].union.ki.dwFlags = KEYEVENTF_KEYUP
+        ctypes.windll.user32.SendInput(len(virtual_keys), ctypes.byref(up_inputs), ctypes.sizeof(INPUT))
+        time.sleep(DEFAULT_HOTKEY_DELAY_MS / 1000)
 
     @staticmethod
     def set_focus(hwnd: int) -> None:
         """Bring the specified window to the foreground and set focus."""
         win32gui.SetForegroundWindow(hwnd)
         win32gui.SetFocus(hwnd)
+
+    @staticmethod
+    def validate_window_id(window_id: int) -> None:
+        """Validate that window_id refers to a valid window.
+
+        Args:
+            window_id: Window handle to validate
+
+        Raises:
+            ValueError: If window_id is not a valid window handle
+        """
+        bounds = Win32API.get_window_bounds(window_id)
+        if bounds is None:
+            raise ValueError(f"window not found: {window_id}")

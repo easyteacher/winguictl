@@ -112,7 +112,7 @@ class OCRDriver:
             bottom = int(loc.get("bottom") or 0)
             matches.append(
                 ElementInfo(
-                    element_id="ocr-%s" % id(r),
+                    element_id=f"ocr-{left}-{top}",
                     window_id=str(int(window_id)),
                     text=candidate,
                     bounds=Bounds(x=left, y=top, width=right - left, height=bottom - top),

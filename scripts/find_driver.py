@@ -13,7 +13,7 @@ Provides multiple element finding strategies:
 
 import win32gui
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from pywinauto import Desktop
 
@@ -68,12 +68,7 @@ class FindDriver:
                             element_id=str(getattr(info, "handle", None) or id(info)),
                             window_id=str(hwnd),
                             text=name,
-                            bounds=Bounds(
-                                x=int(rect.left),
-                                y=int(rect.top),
-                                width=int(rect.right - rect.left),
-                                height=int(rect.bottom - rect.top),
-                            ),
+                            bounds=Bounds.from_rect(rect),
                             class_name=(getattr(info, "class_name", "") or "").strip() or None,
                             control_type="uia-text",
                             control_id=control_id,
@@ -134,7 +129,7 @@ class FindDriver:
         return matches
 
     @staticmethod
-    def _get_uia_element_id(info) -> str:
+    def _get_uia_element_id(info: Any) -> str:
         """Generate a unique identifier string from UIA element info."""
         control_id = getattr(info, "control_id", None)
         if control_id is not None:
@@ -256,20 +251,39 @@ class FindDriver:
             raise RuntimeError("failed to load template image: %s" % image_path)
         result = cv2.matchTemplate(img_bgr, template, cv2.TM_CCOEFF_NORMED)
         locations = np.where(result >= threshold)
-        matches: list[ElementInfo] = []
         template_h, template_w = template.shape[:2]
+        raw_matches: list[tuple[int, int, float]] = []
         for pt in zip(*locations[::-1]):
             score = float(result[pt[1], pt[0]])
+            raw_matches.append((int(pt[0]), int(pt[1]), score))
+        raw_matches.sort(key=lambda m: m[2], reverse=True)
+
+        kept: list[tuple[int, int, float]] = []
+        for x, y, score in raw_matches:
+            suppressed = False
+            for kx, ky, _ in kept:
+                overlap_x = max(0, min(x + template_w, kx + template_w) - max(x, kx))
+                overlap_y = max(0, min(y + template_h, ky + template_h) - max(y, ky))
+                overlap_area = overlap_x * overlap_y
+                area = template_w * template_h
+                if area > 0 and overlap_area / area > 0.5:
+                    suppressed = True
+                    break
+            if not suppressed:
+                kept.append((x, y, score))
+            if len(kept) >= max_results:
+                break
+
+        matches: list[ElementInfo] = []
+        for x, y, score in kept:
             matches.append(
                 ElementInfo(
-                    element_id="image-%s-%s" % (pt[0], pt[1]),
+                    element_id=f"image-{x}-{y}",
                     window_id=str(hwnd),
                     text=Path(image_path).name,
-                    bounds=Bounds(x=int(pt[0]), y=int(pt[1]), width=template_w, height=template_h),
+                    bounds=Bounds(x=x, y=y, width=template_w, height=template_h),
                     source="image",
                     confidence=score,
                 )
             )
-            if len(matches) >= max_results:
-                break
         return matches

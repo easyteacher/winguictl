@@ -11,9 +11,10 @@ building control information, and generating boundary markers.
 
 import json
 import secrets
-from typing import Optional
+from typing import Any, Optional
 
-from models import ActionResult
+from models import ActionResult, WindowInfo
+from uia_driver import UIADriver
 from win32_driver import Win32Driver
 from win32_utils import Win32API
 
@@ -30,7 +31,7 @@ def generate_nonce() -> str:
 
 def wrap_with_boundary(content: str, nonce: str) -> str:
     """Wrap content with boundary markers to prevent context injection."""
-    return "--- WINGUICTL_CONTENT nonce=%s ---\n%s\n--- END_WINGUICTL_CONTENT nonce=%s ---" % (nonce, content, nonce)
+    return f"--- WINGUICTL_CONTENT nonce={nonce} ---\n{content}\n--- END_WINGUICTL_CONTENT nonce={nonce} ---"
 
 
 def emit_action(ok: bool, verb: str, data: Optional[dict] = None) -> None:
@@ -102,3 +103,79 @@ def build_center_payload(target) -> dict:
         "element": target.to_dict(),
         "relative": {"x": relative_x, "y": relative_y},
     }
+
+
+def format_window_tree(windows: list[WindowInfo]) -> str:
+    """Format a list of WindowInfo objects into a hierarchical tree string."""
+    window_map = {int(w.window_id): w for w in windows}
+    children_map: dict[int, list[int]] = {}
+    root_ids: list[int] = []
+    for w in windows:
+        hwnd = int(w.window_id)
+        parent = w.parent_hwnd
+        if parent is None or parent == 0 or parent not in window_map:
+            root_ids.append(hwnd)
+        else:
+            if parent not in children_map:
+                children_map[parent] = []
+            children_map[parent].append(hwnd)
+
+    lines: list[str] = []
+
+    def format_window(hwnd: int, indent: int = 0) -> None:
+        w = window_map[hwnd]
+        state = ""
+        if w.is_minimized:
+            state = ' state="minimized"'
+        elif w.is_maximized:
+            state = ' state="maximized"'
+        if w.is_foreground:
+            state += ' foreground="true"'
+        prefix = "  " * indent
+        parts = [f'{prefix}- "{w.title}" [window_id="{w.window_id}"']
+        parts.append(f"bounds=({w.bounds.x},{w.bounds.y} {w.bounds.width}x{w.bounds.height})")
+        if w.process_id:
+            parts.append(f'pid="{w.process_id}"')
+        if w.process_name:
+            parts.append(f'process="{w.process_name}"')
+        if w.parent_hwnd:
+            parts.append(f'parent_id="{w.parent_hwnd}"')
+        if state:
+            parts.append(state.strip())
+        lines.append(" ".join(parts) + "]")
+        for child_hwnd in children_map.get(hwnd, []):
+            format_window(child_hwnd, indent + 1)
+
+    for root_id in root_ids:
+        format_window(root_id)
+    return "\n".join(lines)
+
+
+def resolve_window_context(window_id: str) -> tuple[str, "Bounds"]:
+    """Resolve window title and bounds, raising ValueError if window not found."""
+    window_title = Win32API.get_window_text(int(window_id))
+    bounds = Win32API.get_window_bounds(int(window_id))
+    if bounds is None:
+        raise ValueError(f"window not found: {window_id}")
+    return window_title, bounds
+
+
+def validate_relative_coords(x: int, y: int, bounds: "Bounds") -> None:
+    """Validate that relative coordinates are within window bounds."""
+    if x < 0 or x >= bounds.width or y < 0 or y >= bounds.height:
+        raise ValueError(f"coordinates ({x}, {y}) are outside window bounds (0-{bounds.width - 1}, 0-{bounds.height - 1})")
+
+
+def build_point_context(absolute_x: int, absolute_y: int) -> dict[str, Any]:
+    """Build element and control info at the given screen coordinates."""
+    element_at_point = UIADriver.get_element_at_point(absolute_x, absolute_y)
+    hwnd_at_point = Win32API.get_hwnd_from_point(absolute_x, absolute_y)
+    control_info = build_control_info(hwnd_at_point) if hwnd_at_point else None
+    return {"element_at_point": element_at_point, "control_info": control_info}
+
+
+def emit_action_result(verb: str, dry_run: bool, data: dict[str, Any]) -> None:
+    """Emit an ActionResult for action commands with proper code/message."""
+    code = "DRY_RUN" if dry_run else "OK"
+    message = "%s preview generated" % verb if dry_run else "%s executed" % verb
+    emit(ActionResult(ok=True, code=code, message=message, data=data).to_dict())

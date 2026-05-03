@@ -22,6 +22,16 @@ class Bounds:
     width: int
     height: int
 
+    @classmethod
+    def from_rect(cls, rect) -> "Bounds":
+        """Create Bounds from a rect object with left, top, right, bottom attributes."""
+        return cls(
+            x=int(rect.left),
+            y=int(rect.top),
+            width=int(rect.right - rect.left),
+            height=int(rect.bottom - rect.top),
+        )
+
     def to_dict(self) -> dict[str, int]:
         return {
             "x": int(self.x),
@@ -130,40 +140,40 @@ class ElementFormatter:
         parts = []
 
         if self.control_type is not None:
-            parts.append('control_type="%s"' % self.control_type)
+            parts.append(f'control_type="{self.control_type}"')
 
         if self.class_name is not None:
-            parts.append('class="%s"' % self.class_name)
+            parts.append(f'class="{self.class_name}"')
 
         if self.automation_id is not None:
-            parts.append('automation_id="%s"' % self.automation_id)
+            parts.append(f'automation_id="{self.automation_id}"')
 
         if self.hwnd is not None:
-            parts.append('hwnd="%s"' % self.hwnd)
+            parts.append(f'hwnd="{self.hwnd}"')
 
         if self.visible is not None:
-            parts.append("visible=%s" % str(self.visible).lower())
+            parts.append(f"visible={str(self.visible).lower()}")
 
         if self.enabled is not None:
-            parts.append("enabled=%s" % str(self.enabled).lower())
+            parts.append(f"enabled={str(self.enabled).lower()}")
 
         if self.confidence is not None:
-            parts.append("confidence=%.2f" % self.confidence)
+            parts.append(f"confidence={self.confidence:.2f}")
 
         if self.rect is not None:
             x, y, w, h = self.rect
-            parts.append("rect=(%s,%s %sx%s)" % (x, y, w, h))
+            parts.append(f"rect=({x},{y} {w}x{h})")
 
         if self.extra:
             for key, value in self.extra.items():
                 if value is not None:
-                    parts.append('%s="%s"' % (key, value))
+                    parts.append(f'{key}="{value}"')
 
         details = " ".join(parts)
-        return '%s- "%s" [%s]' % (prefix, self.text, details)
+        return f'{prefix}- "{self.text}" [{details}]'
 
     @staticmethod
-    def format_uia(info, level: int = 0) -> str:
+    def format_uia(info: Any, level: int = 0) -> str:
         name = (getattr(info, "name", "") or "").strip()
         if not name:
             name = (getattr(info, "rich_text", "") or "").strip()
@@ -237,7 +247,7 @@ class ElementFormatter:
         return formatter.format()
 
     @staticmethod
-    def format_element(element_info, indent: int = 0) -> str:
+    def format_element(element_info: "ElementInfo", indent: int = 0) -> str:
         rect_tuple = None
         if element_info.bounds:
             rect_tuple = (

@@ -2,9 +2,16 @@
 
 Understanding the coordinate system used by winguictl commands.
 
-## Window-Relative Coordinates
+## Coordinate Type Labels
 
-Most winguictl commands return **window-relative coordinates**, not screen-absolute coordinates.
+Output uses explicit labels to distinguish coordinate types:
+
+- `relative_rect` - Window-relative coordinates (origin at window's top-left corner)
+- `absolute_rect` - Screen-absolute coordinates (origin at screen's top-left corner)
+
+## Window-Relative Coordinates (`relative_rect`)
+
+Most winguictl commands return **window-relative coordinates**, labeled as `relative_rect`.
 
 ### What Are Window-Relative Coordinates?
 
@@ -21,23 +28,23 @@ Screen coordinates:        Window-relative coordinates:
   ▼                         ▼
 ```
 
-### Commands Using Window-Relative Coordinates
+### Commands Using `relative_rect`
 
 | Command | Coordinate System |
 |---------|------------------|
-| `snapshot hwnd` | Window-relative |
-| `snapshot uia` | Window-relative |
-| `snapshot ocr` | Window-relative |
-| `find text` | Window-relative |
-| `find uia` | Window-relative |
-| `find ocr` | Window-relative |
-| `find image` | Window-relative |
+| `snapshot hwnd` | Window-relative (`relative_rect`) |
+| `snapshot uia` | Window-relative (`relative_rect`) |
+| `snapshot ocr` | Window-relative (`relative_rect`) |
+| `find text` | Window-relative (`relative_rect`) |
+| `find uia` | Window-relative (`relative_rect`) |
+| `find ocr` | Window-relative (`relative_rect`) |
+| `find image` | Window-relative (`relative_rect`) |
 
-### Commands Using Screen-Absolute Coordinates
+### Commands Using Screen-Absolute Coordinates (`absolute_rect`)
 
 | Command | Coordinate System |
 |---------|------------------|
-| `window list` | Screen-absolute (`bounds` field) |
+| `window list` | Screen-absolute (`absolute_rect` field) |
 
 ### Using Coordinates with Action Commands
 
@@ -46,10 +53,10 @@ Window-relative coordinates can be used directly with `action click` commands:
 ```powershell
 # Find a button
 python scripts\winguictl.py find --window-id 12345 ocr "Submit"
-# Output: - "Submit" [rect=(100,200 80x30)]
+# Output: - "Submit" [relative_rect=(100,200 80x30)]
 
 # Click the button center
-python scripts\winguictl.py action --window-id 12345 click --x 140 --y 215
+python scripts\winguictl.py action --window-id 12345 click --relative-x 140 --relative-y 215
 ```
 
 No manual coordinate conversion is needed.

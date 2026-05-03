@@ -15,7 +15,7 @@ Action commands (`click`, `type`, etc.) rely on coordinates or image matching. F
 python scripts\winguictl.py uia-control --window-id 12345 --element-id "SubmitButton" click
 
 # Fallback: Use action commands with coordinates
-python scripts\winguictl.py action --window-id 12345 click --x 100 --y 200
+python scripts\winguictl.py action --window-id 12345 click --relative-x 100 --relative-y 200
 ```
 
 ## Re-obtain Snapshots After Actions
@@ -81,4 +81,4 @@ python scripts\winguictl.py snapshot --window-id 12345 uia
 | UIA controls without automation_id | `uia-control --element-id <runtime_id> click` |
 | Text-based UI elements | `find ocr` + `action click` |
 | Icon/image buttons | `find image` + `action click` |
-| Unknown element at known position | `action click --x --y` |
+| Unknown element at known position | `action click --relative-x/y` |

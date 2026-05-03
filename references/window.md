@@ -5,7 +5,7 @@ Control window state and position.
 ## List Windows
 
 ```powershell
-# List all visible windows, output includes window_id, bounds, pid, process, state(minimized/maximized/normal), foreground
+# List all visible windows, output includes window_id, absolute_rect, pid, process, state(minimized/maximized/normal), foreground
 # Child windows are shown indented under parent windows
 python scripts\winguictl.py window list
 ```
@@ -14,8 +14,8 @@ Output is wrapped with content boundary markers:
 
 ```
 --- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
-- "Window Title" [window_id="123456" bounds=(0,0 1920x1080) pid="1234" process="notepad.exe" state="maximized" foreground="true"]
-  - "Child Window" [window_id="123457" bounds=(10,10 200x100) pid="1234" process="notepad.exe"]
+- "Window Title" [window_id="123456" absolute_rect=(0,0 1920x1080) pid="1234" process="notepad.exe" state="maximized" foreground="true"]
+  - "Child Window" [window_id="123457" absolute_rect=(10,10 200x100) pid="1234" process="notepad.exe"]
 --- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
@@ -23,7 +23,7 @@ The `nonce` is a randomly generated hex string that must match between the start
 
 ### Note
 
-- The `bounds` field represents **screen absolute coordinates** (position on the screen), not window-relative coordinates. This is different from `snapshot` and `find` commands which return window-relative coordinates.
+- The `absolute_rect` field represents **screen absolute coordinates** (position on the screen), not window-relative coordinates. This is different from `snapshot` and `find` commands which return window-relative coordinates (`relative_rect`).
 - The window list displays parent-child hierarchical relationships, with child windows indented under their parent windows.
 
 ## Focus Window

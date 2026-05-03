@@ -141,7 +141,7 @@ def format_window_tree(windows: list[WindowInfo]) -> str:
             state += ' foreground="true"'
         prefix = "  " * indent
         parts = [f'{prefix}- "{w.title}" [window_id="{w.window_id}"']
-        parts.append(f"bounds=({w.bounds.x},{w.bounds.y} {w.bounds.width}x{w.bounds.height})")
+        parts.append(f"absolute_rect=({w.bounds.x},{w.bounds.y} {w.bounds.width}x{w.bounds.height})")
         if w.process_id:
             parts.append(f'pid="{w.process_id}"')
         if w.process_name:

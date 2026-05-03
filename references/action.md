@@ -31,7 +31,8 @@ Both `--dry-run` and actual execution output include the following information t
 - `window_title`: Window title text
 
 ### Coordinate Information
-- `relative`: Coordinates relative to the window (x, y)
+- `relative`: Coordinates relative to the window (x, y) - included when using `--relative-x/y`
+- `absolute`: Absolute screen coordinates (x, y) - included when using `--absolute-x/y`
 
 ### Element at Point (UIA Information)
 - `element_at_point`: UIA element information at the target coordinates, including:
@@ -90,19 +91,41 @@ When clicking within a window:
 }
 ```
 
+When clicking with absolute coordinates:
+```json
+{
+  "absolute": {"x": 500, "y": 300},
+  "window_id": "25959812",
+  "window_title": "计算器",
+  "relative": {"x": 155, "y": 530},
+  "element_at_point": {...},
+  "control_info": {...}
+}
+```
+
 ## Click Coordinates
 
 ```powershell
-# Click at window-relative coordinates (x,y)
-python scripts\winguictl.py action --window-id <id> click --x 100 --y 200
+# Click at window-relative coordinates (requires --window-id)
+python scripts\winguictl.py action --window-id <id> click --relative-x 100 --relative-y 200
+
+# Click at absolute screen coordinates (no --window-id required)
+python scripts\winguictl.py action click --absolute-x 500 --absolute-y 300
 
 # Preview click coordinates (without executing actual click)
-python scripts\winguictl.py action --window-id <id> click --x 100 --y 200 --dry-run
+python scripts\winguictl.py action --window-id <id> click --relative-x 100 --relative-y 200 --dry-run
 ```
+
+### Coordinate Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `--relative-x`, `--relative-y` | Window-relative coordinates (requires `--window-id`) |
+| `--absolute-x`, `--absolute-y` | Absolute screen coordinates (mutually exclusive with relative) |
 
 ### Coordinate Validation
 
-Coordinates must be within the window bounds:
+For relative coordinates, values must be within the window bounds:
 - Valid range: `0 <= x < window_width` and `0 <= y < window_height`
 - If coordinates are outside the bounds, an error will be raised with a message like:
   ```
@@ -110,8 +133,8 @@ Coordinates must be within the window bounds:
   ```
 
 **Example**: For a window with bounds `(200, 100, 500x600)`:
-- Valid coordinates: `(0, 0)` to `(499, 599)`
-- Invalid coordinates: `(-1, 100)`, `(500, 300)`, `(100, 600)`
+- Valid relative coordinates: `(0, 0)` to `(499, 599)`
+- Invalid relative coordinates: `(-1, 100)`, `(500, 300)`, `(100, 600)`
 
 ## Click Image
 
@@ -126,16 +149,28 @@ python scripts\winguictl.py action --window-id <id> click-image --image-path ass
 ## Drag
 
 ```powershell
-# Drag from (x1,y1) to (x2,y2), duration 800ms
-python scripts\winguictl.py action --window-id <id> drag --x1 100 --y1 200 --x2 400 --y2 200 --duration-ms 800
+# Drag from (x1,y1) to (x2,y2) using window-relative coordinates, duration 800ms
+python scripts\winguictl.py action --window-id <id> drag --relative-x1 100 --relative-y1 200 --relative-x2 400 --relative-y2 200 --duration-ms 800
+
+# Drag using absolute screen coordinates
+python scripts\winguictl.py action drag --absolute-x1 100 --absolute-y1 200 --absolute-x2 400 --absolute-y2 200 --duration-ms 800
 
 # Preview drag path
-python scripts\winguictl.py action --window-id <id> drag --x1 100 --y1 200 --x2 400 --y2 200 --dry-run
+python scripts\winguictl.py action --window-id <id> drag --relative-x1 100 --relative-y1 200 --relative-x2 400 --relative-y2 200 --dry-run
 ```
+
+### Coordinate Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `--relative-x1`, `--relative-y1` | Start point window-relative coordinates (requires `--window-id`) |
+| `--relative-x2`, `--relative-y2` | End point window-relative coordinates (requires `--window-id`) |
+| `--absolute-x1`, `--absolute-y1` | Start point absolute screen coordinates |
+| `--absolute-x2`, `--absolute-y2` | End point absolute screen coordinates |
 
 ### Coordinate Validation
 
-Both start and end coordinates must be within the window bounds:
+For relative coordinates, both start and end coordinates must be within the window bounds:
 - Valid range: `0 <= x < window_width` and `0 <= y < window_height`
 - If either coordinate is outside the bounds, an error will be raised:
   ```
@@ -251,9 +286,9 @@ This ensures the window is active and the mouse is within the window bounds for 
 
 | Subcommand | Description | Parameters |
 |--------|------|------|
-| `click` | Click coordinates | `--x`, `--y`, `--dry-run` |
+| `click` | Click coordinates | `--relative-x`, `--relative-y` (with `--window-id`) OR `--absolute-x`, `--absolute-y`, `--dry-run` |
 | `click-image` | Click image | `--image-path`, `--threshold`, `--dry-run` |
-| `drag` | Drag | `--x1`, `--y1`, `--x2`, `--y2`, `--duration-ms`, `--dry-run` |
+| `drag` | Drag | `--relative-x/y1/2` (with `--window-id`) OR `--absolute-x/y1/2`, `--duration-ms`, `--dry-run` |
 | `type` | Type text | `--text`, `--dry-run` |
 | `press-key` | Press key | `--key`, `--dry-run` |
 | `hotkey` | Key chord | `--keys`, `--dry-run` |

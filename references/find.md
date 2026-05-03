@@ -10,7 +10,7 @@ For coordinate system details, see [Coordinate Systems](coordinates.md).
 All find commands return element information with the following fields:
 
 - `text` - Element text/content
-- `rect` - Element rectangle (window-relative coordinates)
+- `relative_rect` - Element rectangle (window-relative coordinates)
 - `control_type` - Control type (UIA/HWND modes)
 - `class` - Window class name (UIA/HWND modes)
 - `hwnd` - Control handle (HWND mode)
@@ -32,7 +32,7 @@ python scripts\winguictl.py find --window-id <id> text "Submit" --exact
 
 ```
 --- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
-- "Submit" [control_type="Button" class="Button" confidence=0.95 rect=(150,200 80x30)]
+- "Submit" [control_type="Button" class="Button" confidence=0.95 relative_rect=(150,200 80x30)]
 --- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
@@ -110,8 +110,8 @@ python scripts\winguictl.py find --window-id <id> ocr "Confirm" --confidence-thr
 
 ```
 --- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
-- "Confirm" [confidence=0.90 rect=(46,525 80x20)]
-- "Confirmation" [confidence=0.90 rect=(46,550 100x20)]
+- "Confirm" [confidence=0.90 relative_rect=(46,525 80x20)]
+- "Confirmation" [confidence=0.90 relative_rect=(46,550 100x20)]
 --- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
@@ -141,8 +141,8 @@ python scripts\winguictl.py find --window-id <id> image --image-path assets\butt
 
 ```
 --- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
-- "button.png" [confidence=0.95 rect=(100,150 120x40)]
-- "button.png" [confidence=0.92 rect=(250,150 120x40)]
+- "button.png" [confidence=0.95 relative_rect=(100,150 120x40)]
+- "button.png" [confidence=0.92 relative_rect=(250,150 120x40)]
 --- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 

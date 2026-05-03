@@ -19,14 +19,14 @@ Output includes:
 - `visible` - Whether visible
 - `text` - Control text
 - `control_id` - Control ID (if available)
-- `rect` - Control rectangle (window-relative coordinates)
+- `relative_rect` - Control rectangle (window-relative coordinates)
 
 Output example:
 ```
 --- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
-- "Window Title" [control_type="Window" class="Notepad" hwnd="123456" visible=true rect=(0,0 800x600)]
-  - "Text Content" [control_type="Edit" class="Edit" hwnd="123457" visible=true rect=(8,31 784x561)]
-  - "" [control_type="Button" class="Button" hwnd="123458" visible=true control_id="1" rect=(750,0 40x20)]
+- "Window Title" [control_type="Window" class="Notepad" hwnd="123456" visible=true relative_rect=(0,0 800x600)]
+  - "Text Content" [control_type="Edit" class="Edit" hwnd="123457" visible=true relative_rect=(8,31 784x561)]
+  - "" [control_type="Button" class="Button" hwnd="123458" visible=true control_id="1" relative_rect=(750,0 40x20)]
 --- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
@@ -42,15 +42,15 @@ Output includes:
 - `class` - Window class name
 - `automation_id` - Automation ID
 - `runtime_id` - Runtime ID
-- `rect` - Control rectangle area
+- `relative_rect` - Control rectangle area (window-relative coordinates)
 - `control_id` - Control ID (if available)
 
 Output example:
 ```
 --- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
-- "Window Title" [control_type="Window" class="Notepad" automation_id="" rect=(0,0 800x600)]
-  - "Document" [control_type="Edit" class="Edit" automation_id="15" rect=(0,0 784x568)]
-  - "File" [control_type="MenuItem" automation_id="File" rect=(0,0 40x20)]
+- "Window Title" [control_type="Window" class="Notepad" automation_id="" relative_rect=(0,0 800x600)]
+  - "Document" [control_type="Edit" class="Edit" automation_id="15" relative_rect=(0,0 784x568)]
+  - "File" [control_type="MenuItem" automation_id="File" relative_rect=(0,0 40x20)]
 --- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
@@ -75,15 +75,15 @@ python scripts\winguictl.py snapshot --window-id <window_id> ocr
 
 Output includes:
 - `text` - Recognized text
-- `rect` - Text area rectangle **(window-relative coordinates)**
+- `relative_rect` - Text area rectangle **(window-relative coordinates)**
 - `confidence` - Confidence (if available)
 
 Output example:
 ```
 --- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
-- "File" [rect=(0,0 40x20)]
-- "Edit" [rect=(40,0 40x20)]
-- "Hello World" [rect=(100,100 80x16)]
+- "File" [relative_rect=(0,0 40x20)]
+- "Edit" [relative_rect=(40,0 40x20)]
+- "Hello World" [relative_rect=(100,100 80x16)]
 --- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
@@ -99,8 +99,8 @@ OCR captures all visible text from the target window, which may include sensitiv
 | Subcommand | Description | Output Content |
 |--------|------|----------|
 | `hwnd` | Win32 HWND tree | hwnd, class, control_type, visible, text, control_id |
-| `uia` | UIA tree | control_type, class, automation_id, runtime_id, rect, control_id |
-| `ocr` | OCR text | text, rect, confidence |
+| `uia` | UIA tree | control_type, class, automation_id, runtime_id, relative_rect, control_id |
+| `ocr` | OCR text | text, relative_rect, confidence |
 
 ## Dependencies
 

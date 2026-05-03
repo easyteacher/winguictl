@@ -42,7 +42,7 @@ python scripts\winguictl.py snapshot --window-id 12345 uia
 python scripts\winguictl.py find --window-id 12345 uia --text "Submit"
 ```
 
-#### Step 4: Interact with the element (preview first with --dry-run)
+#### Step 4: Interact with the element
 ```powershell
 python scripts\winguictl.py uia-control --window-id 12345 --element-id "SubmitButton" click
 ```
@@ -106,9 +106,10 @@ For detailed command documentation, see:
 
 ## Operating Rules
 
-- Coordinates are relative to the window unless the tool explicitly says otherwise.
+- Coordinates use `relative_rect` (window-relative) by default. Use `absolute_rect` for screen coordinates. For coordinate system details, see [Coordinate Systems](references/coordinates.md).
 - Use `--dry-run` when you need to preview coordinates or confirm intent.
 - Report the exact window title and `window_id` you acted on.
+- Action operations may change UI state; always re-obtain snapshots before subsequent operations. For workflow notes, see [Workflow Notes](references/workflow-notes.md).
 
 ## Security Considerations
 
@@ -148,21 +149,4 @@ The CLI returns appropriate exit codes:
 - `0` - Success
 - `1` - Error (validation error, operation failed, unexpected error)
 
-Error output is formatted as JSON with the following structure:
-```json
-{
-  "ok": false,
-  "code": "VALIDATION_ERROR",
-  "message": "coordinates (100, 200) are outside window bounds"
-}
-```
-
-### Error Codes
-
-| Code | Description |
-|------|-------------|
-| `OK` | Operation succeeded |
-| `FAILED` | Operation failed (business logic) |
-| `VALIDATION_ERROR` | Input validation failed |
-| `ERROR` | Unexpected error |
-| `DRY_RUN` | Preview mode (not an error) |
+For output format details, including error codes and JSON structure, see [Output Format](references/output-format.md).

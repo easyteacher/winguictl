@@ -231,6 +231,7 @@ class ElementFormatter:
 
     text: str
     rect: Optional[tuple[int, int, int, int]] = None
+    rect_is_absolute: bool = False
     control_type: Optional[str] = None
     class_name: Optional[str] = None
     automation_id: Optional[str] = None
@@ -268,7 +269,8 @@ class ElementFormatter:
 
         if self.rect is not None:
             x, y, w, h = self.rect
-            parts.append(f"rect=({x},{y} {w}x{h})")
+            rect_key = "absolute_rect" if self.rect_is_absolute else "relative_rect"
+            parts.append(f"{rect_key}=({x},{y} {w}x{h})")
 
         if self.extra:
             for key, value in self.extra.items():

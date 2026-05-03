@@ -108,13 +108,13 @@ python scripts\winguictl.py action --window-id <window_id> hotkey --keys Ctrl A
 ### Click at Coordinates
 
 ```powershell
-python scripts\winguictl.py action --window-id <window_id> click --x 100 --y 100
+python scripts\winguictl.py action --window-id <window_id> click --relative-x 100 --relative-y 100
 ```
 
 ### Drag
 
 ```powershell
-python scripts\winguictl.py action --window-id <window_id> drag --x1 100 --y1 100 --x2 200 --y2 200
+python scripts\winguictl.py action --window-id <window_id> drag --relative-x1 100 --relative-y1 100 --relative-x2 200 --relative-y2 200
 ```
 
 ### Clear Text
@@ -555,9 +555,9 @@ The Save dialog contains multiple ComboBox types:
 | Type text | `action --window-id <id> type --text` | ☑ |
 | Press key | `action --window-id <id> press-key --key` | ☑ |
 | Hotkey | `action --window-id <id> hotkey --keys` | ☑ |
-| Click | `action --window-id <id> click --x --y` | ☐ |
+| Click | `action --window-id <id> click --relative-x/y` | ☐ |
 | Click image | `action --window-id <id> click-image --image-path` | ☑ |
-| Drag | `action --window-id <id> drag --x1 --y1 --x2 --y2` | ☐ |
+| Drag | `action --window-id <id> drag --relative-x/y1/2` | ☐ |
 | Clear text | `action --window-id <id> clear-text` | ☐ |
 
 ### Snapshot Operations

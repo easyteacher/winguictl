@@ -58,19 +58,19 @@ python scripts\winguictl.py snapshot --window-id <id> uia
 
 ##### Step 4: Preview the operation with dry-run
 ```powershell
-python scripts\winguictl.py action --window-id <id> click --x 100 --y 200 --dry-run
+python scripts\winguictl.py action --window-id <id> click --relative-x 100 --relative-y 200 --dry-run
 ```
 
 ##### Step 5: Execute only after verification
 ```powershell
-python scripts\winguictl.py action --window-id <id> click --x 100 --y 200
+python scripts\winguictl.py action --window-id <id> click --relative-x 100 --relative-y 200
 ```
 
 ### 2. Use Exact Window IDs
 
 #### ❌ Avoid: Fuzzy window title matching
 ```powershell
-python scripts\winguictl.py action --window-id "Notepad" click --x 100 --y 200
+python scripts\winguictl.py action --window-id "Notepad" click --relative-x 100 --relative-y 200
 ```
 
 #### ✅ Recommended: Use exact window ID from `window list`
@@ -79,7 +79,7 @@ python scripts\winguictl.py window list
 ```
 Output: `[12345] Notepad - ...`
 ```powershell
-python scripts\winguictl.py action --window-id 12345 click --x 100 --y 200
+python scripts\winguictl.py action --window-id 12345 click --relative-x 100 --relative-y 200
 ```
 
 ### 3. Use Dry-Run for Preview
@@ -88,7 +88,7 @@ Always use `--dry-run` flag to preview operations before execution:
 
 #### Preview click coordinates
 ```powershell
-python scripts\winguictl.py action --window-id <id> click --x 100 --y 200 --dry-run
+python scripts\winguictl.py action --window-id <id> click --relative-x 100 --relative-y 200 --dry-run
 ```
 
 #### Preview image click target
@@ -98,7 +98,7 @@ python scripts\winguictl.py action --window-id <id> click-image --image-path but
 
 #### Preview drag operation
 ```powershell
-python scripts\winguictl.py action --window-id <id> drag --x1 100 --y1 200 --x2 400 --y2 200 --dry-run
+python scripts\winguictl.py action --window-id <id> drag --relative-x1 100 --relative-y1 200 --relative-x2 400 --relative-y2 200 --dry-run
 ```
 
 ### 4. Prefer Structured Identifiers
@@ -108,7 +108,7 @@ python scripts\winguictl.py action --window-id <id> drag --x1 100 --y1 200 --x2 
 1. **HWND** (Win32 controls) - Most reliable: `python scripts\winguictl.py control --hwnd 12345 click`
 2. **automation_id/runtime_id** (UIA elements) - Reliable: `python scripts\winguictl.py uia-control --window-id 12345 --element-id "Button1" click`
 3. **Image matching** - Less reliable: `python scripts\winguictl.py action --window-id 12345 click-image --image-path button.png`
-4. **Coordinates** - Least reliable, use as last resort: `python scripts\winguictl.py action --window-id 12345 click --x 100 --y 200`
+4. **Coordinates** - Least reliable, use as last resort: `python scripts\winguictl.py action --window-id 12345 click --relative-x 100 --relative-y 200`
 
 ## Sensitive Application Management
 

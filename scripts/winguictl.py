@@ -122,12 +122,15 @@ def _build_find_parser(subparsers: argparse._SubParsersAction) -> None:
 def _build_action_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the action subcommand parser."""
     p = subparsers.add_parser("action", help="Preview or run actions against a window.")
-    p.add_argument("--window-id", type=int, required=True)
+    p.add_argument("--window-id", type=int, help="Window handle (required for relative coordinates)")
     sp = p.add_subparsers(dest="action_command", required=True)
 
     click = sp.add_parser("click", help="Click at coordinates.")
-    click.add_argument("--x", type=int, required=True)
-    click.add_argument("--y", type=int, required=True)
+    coord_group = click.add_mutually_exclusive_group(required=True)
+    coord_group.add_argument("--relative-x", type=int, help="X coordinate relative to window (requires --relative-y and --window-id)")
+    coord_group.add_argument("--absolute-x", type=int, help="Absolute screen X coordinate (requires --absolute-y)")
+    click.add_argument("--relative-y", type=int, help="Y coordinate relative to window (requires --relative-x and --window-id)")
+    click.add_argument("--absolute-y", type=int, help="Absolute screen Y coordinate (requires --absolute-x)")
     click.add_argument("--dry-run", action="store_true")
 
     click_image = sp.add_parser("click-image", help="Click the first matching image template.")
@@ -136,10 +139,15 @@ def _build_action_parser(subparsers: argparse._SubParsersAction) -> None:
     click_image.add_argument("--dry-run", action="store_true")
 
     drag = sp.add_parser("drag", help="Drag from one point to another.")
-    drag.add_argument("--x1", type=int, required=True)
-    drag.add_argument("--y1", type=int, required=True)
-    drag.add_argument("--x2", type=int, required=True)
-    drag.add_argument("--y2", type=int, required=True)
+    drag_coord_group = drag.add_mutually_exclusive_group(required=True)
+    drag_coord_group.add_argument("--relative-x1", type=int, help="Start X coordinate relative to window")
+    drag_coord_group.add_argument("--absolute-x1", type=int, help="Absolute start screen X coordinate")
+    drag.add_argument("--relative-y1", type=int, help="Start Y coordinate relative to window")
+    drag.add_argument("--absolute-y1", type=int, help="Absolute start screen Y coordinate")
+    drag.add_argument("--relative-x2", type=int, help="End X coordinate relative to window")
+    drag.add_argument("--absolute-x2", type=int, help="Absolute end screen X coordinate")
+    drag.add_argument("--relative-y2", type=int, help="End Y coordinate relative to window")
+    drag.add_argument("--absolute-y2", type=int, help="Absolute end screen Y coordinate")
     drag.add_argument("--duration-ms", type=int, default=500)
     drag.add_argument("--dry-run", action="store_true")
 
@@ -433,22 +441,51 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
     from windows_driver import WindowsDriver
 
     try:
-        Win32API.validate_window_id(args.window_id)
-        window_title = Win32API.get_window_text(args.window_id)
-
         match args.action_command:
             case "click":
-                window_title, bounds = resolve_window_context(args.window_id)
-                validate_relative_coords(args.x, args.y, bounds)
-                absolute_x = bounds.x + args.x
-                absolute_y = bounds.y + args.y
-                point_ctx = build_point_context(absolute_x, absolute_y)
-                data = {"window_id": str(args.window_id), "window_title": window_title, "relative": {"x": args.x, "y": args.y}, **point_ctx}
+                if args.absolute_x is not None:
+                    absolute_x = args.absolute_x
+                    absolute_y = args.absolute_y
+                    window_id = Win32API.get_hwnd_from_point(absolute_x, absolute_y)
+                    window_title = Win32API.get_window_text(window_id) if window_id else None
+                    window_bounds = Win32API.get_window_bounds(window_id) if window_id else None
+                    relative_x = absolute_x - window_bounds.x if window_bounds else None
+                    relative_y = absolute_y - window_bounds.y if window_bounds else None
+                    point_ctx = build_point_context(absolute_x, absolute_y)
+                    data = {
+                        "absolute": {"x": absolute_x, "y": absolute_y},
+                        "window_id": str(window_id) if window_id else None,
+                        "window_title": window_title,
+                        **point_ctx,
+                    }
+                    if relative_x is not None and relative_y is not None:
+                        data["relative"] = {"x": relative_x, "y": relative_y}
+                else:
+                    if args.window_id is None:
+                        raise ValueError("--window-id is required for relative coordinates")
+                    Win32API.validate_window_id(args.window_id)
+                    window_title, bounds = resolve_window_context(args.window_id)
+                    validate_relative_coords(args.relative_x, args.relative_y, bounds)
+                    relative_x = args.relative_x
+                    relative_y = args.relative_y
+                    absolute_x = bounds.x + args.relative_x
+                    absolute_y = bounds.y + args.relative_y
+                    point_ctx = build_point_context(absolute_x, absolute_y)
+                    data = {
+                        "window_id": str(args.window_id),
+                        "window_title": window_title,
+                        "relative": {"x": relative_x, "y": relative_y},
+                        **point_ctx,
+                    }
                 if not args.dry_run:
-                    WindowsDriver.focus_window(args.window_id)
+                    if args.window_id:
+                        WindowsDriver.focus_window(args.window_id)
                     Win32API.send_click(absolute_x, absolute_y)
                 emit_action_result("click", args.dry_run, data)
             case "click-image":
+                if args.window_id is None:
+                    raise ValueError("--window-id is required for click-image")
+                Win32API.validate_window_id(args.window_id)
                 matches = FindDriver.find_image(window_id=args.window_id, image_path=args.image_path, threshold=args.threshold)
                 if not matches:
                     raise ValueError(f"image target not found: {args.image_path}")
@@ -470,26 +507,51 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                     Win32API.send_click(absolute_x, absolute_y)
                 emit_action_result("click_image", args.dry_run, payload)
             case "drag":
-                window_title, bounds = resolve_window_context(args.window_id)
-                validate_relative_coords(args.x1, args.y1, bounds)
-                validate_relative_coords(args.x2, args.y2, bounds)
-                absolute_x1 = bounds.x + args.x1
-                absolute_y1 = bounds.y + args.y1
-                absolute_x2 = bounds.x + args.x2
-                absolute_y2 = bounds.y + args.y2
-                from_ctx = build_point_context(absolute_x1, absolute_y1)
-                to_ctx = build_point_context(absolute_x2, absolute_y2)
-                data = {
-                    "window_id": str(args.window_id), "window_title": window_title,
-                    "from": {"relative": {"x": args.x1, "y": args.y1}, **from_ctx},
-                    "to": {"relative": {"x": args.x2, "y": args.y2}, **to_ctx},
-                    "duration_ms": args.duration_ms,
-                }
+                if args.absolute_x1 is not None:
+                    absolute_x1 = args.absolute_x1
+                    absolute_y1 = args.absolute_y1
+                    absolute_x2 = args.absolute_x2
+                    absolute_y2 = args.absolute_y2
+                    window_id = Win32API.get_hwnd_from_point(absolute_x1, absolute_y1)
+                    window_title = Win32API.get_window_text(window_id) if window_id else None
+                    window_bounds = Win32API.get_window_bounds(window_id) if window_id else None
+                    from_ctx = build_point_context(absolute_x1, absolute_y1)
+                    to_ctx = build_point_context(absolute_x2, absolute_y2)
+                    data = {
+                        "from": {"absolute": {"x": absolute_x1, "y": absolute_y1}, **from_ctx},
+                        "to": {"absolute": {"x": absolute_x2, "y": absolute_y2}, **to_ctx},
+                        "duration_ms": args.duration_ms,
+                        "window_id": str(window_id) if window_id else None,
+                        "window_title": window_title,
+                    }
+                else:
+                    if args.window_id is None:
+                        raise ValueError("--window-id is required for relative coordinates")
+                    Win32API.validate_window_id(args.window_id)
+                    window_title, bounds = resolve_window_context(args.window_id)
+                    validate_relative_coords(args.relative_x1, args.relative_y1, bounds)
+                    validate_relative_coords(args.relative_x2, args.relative_y2, bounds)
+                    absolute_x1 = bounds.x + args.relative_x1
+                    absolute_y1 = bounds.y + args.relative_y1
+                    absolute_x2 = bounds.x + args.relative_x2
+                    absolute_y2 = bounds.y + args.relative_y2
+                    from_ctx = build_point_context(absolute_x1, absolute_y1)
+                    to_ctx = build_point_context(absolute_x2, absolute_y2)
+                    data = {
+                        "window_id": str(args.window_id), "window_title": window_title,
+                        "from": {"relative": {"x": args.relative_x1, "y": args.relative_y1}, **from_ctx},
+                        "to": {"relative": {"x": args.relative_x2, "y": args.relative_y2}, **to_ctx},
+                        "duration_ms": args.duration_ms,
+                    }
                 if not args.dry_run:
-                    WindowsDriver.focus_window(args.window_id)
+                    if args.window_id:
+                        WindowsDriver.focus_window(args.window_id)
                     Win32API.send_drag(absolute_x1, absolute_y1, absolute_x2, absolute_y2, duration_ms=args.duration_ms)
                 emit_action_result("drag", args.dry_run, data)
             case "type":
+                if args.window_id is None:
+                    raise ValueError("--window-id is required for type")
+                Win32API.validate_window_id(args.window_id)
                 window_title = Win32API.get_window_text(args.window_id)
                 data = {"window_id": str(args.window_id), "window_title": window_title, "text": args.text, "length": len(args.text)}
                 if not args.dry_run:
@@ -498,6 +560,9 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                     Win32API.send_type_text(args.text)
                 emit_action_result("type_text", args.dry_run, data)
             case "press-key":
+                if args.window_id is None:
+                    raise ValueError("--window-id is required for press-key")
+                Win32API.validate_window_id(args.window_id)
                 window_title = Win32API.get_window_text(args.window_id)
                 data = {"window_id": str(args.window_id), "window_title": window_title, "key": args.key}
                 if not args.dry_run:
@@ -506,6 +571,9 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                     Win32API.send_press_key(args.key)
                 emit_action_result("press_key", args.dry_run, data)
             case "hotkey":
+                if args.window_id is None:
+                    raise ValueError("--window-id is required for hotkey")
+                Win32API.validate_window_id(args.window_id)
                 window_title = Win32API.get_window_text(args.window_id)
                 data = {"window_id": str(args.window_id), "window_title": window_title, "keys": args.keys}
                 if not args.dry_run:
@@ -514,6 +582,9 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                     Win32API.send_hotkey(args.keys)
                 emit_action_result("hotkey", args.dry_run, data)
             case "clear-text":
+                if args.window_id is None:
+                    raise ValueError("--window-id is required for clear-text")
+                Win32API.validate_window_id(args.window_id)
                 window_title = Win32API.get_window_text(args.window_id)
                 data = {"window_id": str(args.window_id), "window_title": window_title}
                 if not args.dry_run:
@@ -523,11 +594,11 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                     Win32API.send_press_key("delete")
                 emit_action_result("clear_text", args.dry_run, data)
             case _:
-                emit_action(False, args.action_command, {"window_id": str(args.window_id), "error": f"unknown action subcommand: {args.action_command}"})
+                emit_action(False, args.action_command, {"window_id": str(args.window_id) if args.window_id else None, "error": f"unknown action subcommand: {args.action_command}"})
                 return 1
         return 0
     except Exception as e:  # pylint: disable=broad-exception-caught
-        emit_action(False, args.action_command, {"window_id": str(args.window_id), "error": str(e)})
+        emit_action(False, args.action_command, {"window_id": str(args.window_id) if args.window_id else None, "error": str(e)})
         return 1
 
 

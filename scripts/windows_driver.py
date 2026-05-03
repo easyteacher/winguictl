@@ -107,12 +107,7 @@ class WindowsDriver:
                     WindowInfo(
                         window_id=str(handle),
                         title=title,
-                        bounds=Bounds(
-                            x=int(rect.left),
-                            y=int(rect.top),
-                            width=int(rect.right - rect.left),
-                            height=int(rect.bottom - rect.top),
-                        ),
+                        bounds=Bounds.from_rect(rect),
                         process_id=int(pid) if pid else None,
                         process_name=WindowsDriver._get_process_name(pid) if pid else None,
                         is_visible=True,
@@ -159,8 +154,14 @@ class WindowsDriver:
 
     @staticmethod
     def resize_window(window_id: str, width: int, height: int) -> bool:
-        """Resize the window."""
-        return WindowsDriver._window_action(window_id, "move_window", width=width, height=height)
+        """Resize the window while preserving its current position."""
+        try:
+            wrapper = WindowsDriver._wrap(window_id)
+            rect = wrapper.rectangle()
+            wrapper.move_window(x=rect.left, y=rect.top, width=width, height=height)
+            return True
+        except Exception:
+            return False
 
     @staticmethod
     def screenshot_window(window_id: str, output: str, rect: Optional[Tuple[int, int, int, int]] = None) -> str:

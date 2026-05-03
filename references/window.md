@@ -21,7 +21,10 @@ Output is wrapped with content boundary markers:
 
 The `nonce` is a randomly generated hex string that must match between the start and end markers.
 
-The window list displays parent-child hierarchical relationships, with child windows indented under their parent windows.
+### Note
+
+- The `bounds` field represents **screen absolute coordinates** (position on the screen), not window-relative coordinates. This is different from `snapshot` and `find` commands which return window-relative coordinates.
+- The window list displays parent-child hierarchical relationships, with child windows indented under their parent windows.
 
 ## Focus Window
 

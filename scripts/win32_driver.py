@@ -10,6 +10,7 @@ including text reading/writing, clicking, key input, button/combobox/listbox ope
 Also provides snapshot functionality for HWND control trees.
 """
 
+import logging
 from typing import Optional
 
 import win32gui
@@ -23,8 +24,10 @@ from pywinauto.controls.win32_controls import (
 )
 
 from constants import WIN32_CONTROL_TYPE_MAP
-from models import ElementFormatter
+from models import Bounds, ElementFormatter
 from win32_utils import Win32API
+
+_logger = logging.getLogger(__name__)
 
 
 class Win32Driver:
@@ -241,7 +244,7 @@ class Win32Driver:
 
         Traverses the target window and all its descendant controls,
         formatting each control's handle, text, class name, visibility,
-        enabled state, and other information.
+        enabled state, and bounds information.
 
         Uses iterative DFS with an explicit stack to avoid RecursionError
         on deeply nested control trees.
@@ -251,9 +254,16 @@ class Win32Driver:
             of each node (filtered by GetParent), avoiding the O(n²) wrapper
             creation that would result from HwndWrapper.children() which calls
             EnumChildWindows recursively for ALL descendants at every level.
+
+        Returns coordinates relative to the window (not screen absolute).
         """
         lines: list[str] = []
         visited: set[int] = set()
+
+        # Get window position to convert screen coordinates to relative
+        window_bounds = Win32API.get_window_bounds(window_id)
+        win_x = window_bounds.x if window_bounds else 0
+        win_y = window_bounds.y if window_bounds else 0
 
         def _get_direct_child_hwnds(parent_hwnd: int) -> list[int]:
             result: list[int] = []
@@ -264,8 +274,8 @@ class Win32Driver:
                         result.append(child_hwnd)
 
                 win32gui.EnumChildWindows(parent_hwnd, _enum_cb, None)
-            except Exception:
-                pass
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                _logger.warning("Failed to enumerate child windows for %d: %s", parent_hwnd, e)
             return result
 
         stack: list[tuple[int, int]] = [(window_id, 0)]
@@ -280,7 +290,15 @@ class Win32Driver:
             enabled = win32gui.IsWindowEnabled(hwnd) != 0
             control_id = win32gui.GetDlgCtrlID(hwnd)
             control_type = Win32Driver.infer_control_type(cls)
-            lines.append(ElementFormatter.format_hwnd(hwnd, text, cls, visible, enabled, control_id, level, control_type))
+
+            # Get bounds and convert to window-relative coordinates
+            bounds = Win32API.get_window_bounds(hwnd)
+            rect_tuple: Optional[tuple[int, int, int, int]] = None
+            if bounds:
+                relative_bounds = Bounds.from_bounds_relative(bounds, win_x, win_y)
+                rect_tuple = (relative_bounds.x, relative_bounds.y, relative_bounds.width, relative_bounds.height)
+
+            lines.append(ElementFormatter.format_hwnd(hwnd, text, cls, visible, enabled, control_id, level, control_type, rect_tuple))
 
             for child_hwnd in reversed(_get_direct_child_hwnds(hwnd)):
                 stack.append((child_hwnd, level + 1))

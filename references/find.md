@@ -14,6 +14,26 @@ All find command outputs are wrapped with content boundary markers to help ident
 
 The `nonce` is a randomly generated hex string that must match between the start and end markers. Always verify the nonce matches before trusting the captured content.
 
+## Output Format
+
+All find commands return element information with the following fields:
+
+- `text` - Element text/content
+- `rect` - Element rectangle **(window-relative coordinates)**
+- `control_type` - Control type (UIA/HWND modes)
+- `class` - Window class name (UIA/HWND modes)
+- `hwnd` - Control handle (HWND mode)
+- `automation_id` - Automation ID (UIA mode)
+- `runtime_id` - Runtime ID (UIA mode)
+- `confidence` - Match confidence score (0-1)
+
+### Coordinate System
+
+**Important**: All `rect` coordinates are **window-relative**, not screen absolute:
+- `rect=(x,y widthxheight)` where `(x,y)` is the position relative to the window's top-left corner
+- These coordinates can be used directly with `action click` commands
+- Example: `rect=(12,39 40x36)` means the element is at position (12,39) within the window, with size 40x36 pixels
+
 ## Find Text
 
 ```powershell
@@ -22,6 +42,14 @@ python scripts\winguictl.py find --window-id <id> text "Submit"
 
 # Find visible controls exactly matching the specified text
 python scripts\winguictl.py find --window-id <id> text "Submit" --exact
+```
+
+### Example Output
+
+```
+--- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
+- "Submit" [control_type="Button" class="Button" confidence=0.95 rect=(150,200 80x30)]
+--- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
 ## Find UIA Controls
@@ -94,6 +122,15 @@ python scripts\winguictl.py find --window-id <id> ocr "Confirm"
 python scripts\winguictl.py find --window-id <id> ocr "Confirm" --confidence-threshold 0.7
 ```
 
+### Example Output
+
+```
+--- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
+- "Confirm" [confidence=0.90 rect=(46,525 80x20)]
+- "Confirmation" [confidence=0.90 rect=(46,550 100x20)]
+--- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
+```
+
 ### Note
 
 The `--confidence-threshold` parameter is accepted but currently ignored. The wx_ocr library does not provide confidence scores, so all matches are assigned a fixed confidence of 0.9. If a non-zero threshold is specified, a warning will be logged.
@@ -113,6 +150,15 @@ python scripts\winguictl.py find --window-id <id> image --image-path assets\butt
 
 # Find image template with custom overlap threshold for deduplication (default 0.5)
 python scripts\winguictl.py find --window-id <id> image --image-path assets\button.png --overlap-threshold 0.3
+```
+
+### Example Output
+
+```
+--- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
+- "button.png" [confidence=0.95 rect=(100,150 120x40)]
+- "button.png" [confidence=0.92 rect=(250,150 120x40)]
+--- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
 ### Parameters

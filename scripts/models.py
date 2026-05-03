@@ -9,6 +9,8 @@ Data type definitions.
 This module contains data types for window information, element information, and action results.
 """
 
+# pylint: disable=unnecessary-ellipsis
+
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any, Optional, Protocol, runtime_checkable
 
@@ -91,6 +93,44 @@ class Bounds:
             y=int(rect.top),
             width=int(rect.right - rect.left),
             height=int(rect.bottom - rect.top),
+        )
+
+    @classmethod
+    def from_rect_relative(cls, rect: Any, window_x: int, window_y: int) -> "Bounds":
+        """Create Bounds from rect and convert to window-relative coordinates.
+
+        Args:
+            rect: Rectangle object with left, top, right, bottom properties
+            window_x: Window's screen X position
+            window_y: Window's screen Y position
+
+        Returns:
+            Bounds instance with window-relative coordinates
+        """
+        return cls(
+            x=int(rect.left) - window_x,
+            y=int(rect.top) - window_y,
+            width=int(rect.right - rect.left),
+            height=int(rect.bottom - rect.top),
+        )
+
+    @classmethod
+    def from_bounds_relative(cls, bounds: "Bounds", window_x: int, window_y: int) -> "Bounds":
+        """Convert absolute Bounds to window-relative coordinates.
+
+        Args:
+            bounds: Absolute Bounds instance
+            window_x: Window's screen X position
+            window_y: Window's screen Y position
+
+        Returns:
+            Bounds instance with window-relative coordinates
+        """
+        return cls(
+            x=bounds.x - window_x,
+            y=bounds.y - window_y,
+            width=bounds.width,
+            height=bounds.height,
         )
 
     def to_dict(self) -> dict[str, int]:
@@ -239,12 +279,14 @@ class ElementFormatter:
         return f'{prefix}- "{self.text}" [{details}]'
 
     @staticmethod
-    def format_uia(info: "HasUIAAttributes", level: int = 0) -> str:
+    def format_uia(info: "HasUIAAttributes", level: int = 0, offset_x: int = 0, offset_y: int = 0) -> str:
         """Format UIA element info as a human-readable string.
 
         Args:
             info: UIA element info object (UIAElementInfo or wrapper with UIA attributes)
             level: Indentation level for nested elements
+            offset_x: X offset to subtract from rect (for window-relative coordinates)
+            offset_y: Y offset to subtract from rect (for window-relative coordinates)
 
         Returns:
             Formatted string representation of the element
@@ -260,7 +302,8 @@ class ElementFormatter:
         rect = getattr(info, "rectangle", None)
         rect_tuple: Optional[tuple[int, int, int, int]] = None
         if rect is not None:
-            rect_tuple = (int(rect.left), int(rect.top), int(rect.right - rect.left), int(rect.bottom - rect.top))
+            relative_bounds = Bounds.from_rect_relative(rect, offset_x, offset_y)
+            rect_tuple = (relative_bounds.x, relative_bounds.y, relative_bounds.width, relative_bounds.height)
         enabled = getattr(info, "enabled", None)
 
         extra: dict[str, str] = {}
@@ -290,6 +333,7 @@ class ElementFormatter:
         control_id: Optional[int] = None,
         level: int = 0,
         control_type: Optional[str] = None,
+        rect: Optional[tuple[int, int, int, int]] = None,
     ) -> str:
         """Format HWND element info as a human-readable string."""
         extra = {}
@@ -302,6 +346,7 @@ class ElementFormatter:
             visible=visible,
             enabled=enabled,
             control_type=control_type,
+            rect=rect,
             extra=extra if extra else None,
         )
         return formatter.format(indent=level)

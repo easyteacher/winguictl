@@ -28,7 +28,6 @@ from pywinauto.timings import TimeoutError as PywinautoTimeoutError
 
 from constants import (
     DEFAULT_COMBOBOX_DROPDOWN_TIMEOUT_MS,
-    DEFAULT_UIA_WAIT_TIMEOUT_SEC,
 )
 from models import ElementFormatter
 
@@ -57,22 +56,18 @@ def _get_uia_desktop() -> Desktop:
 
 class UIAOperationError(RuntimeError):
     """Base exception for UIA operation failures."""
-    pass
 
 
 class UIAElementNotFoundError(UIAOperationError):
     """Raised when a UIA element cannot be found."""
-    pass
 
 
 class UIATimeoutError(UIAOperationError):
     """Raised when a UIA operation times out."""
-    pass
 
 
 class UIAAttributeError(UIAOperationError):
     """Raised when a required UIA attribute is not available."""
-    pass
 
 
 class UIADriver:
@@ -117,8 +112,8 @@ class UIADriver:
             hwnd_str = query[5:]
             try:
                 target_hwnd = int(hwnd_str)
-            except ValueError:
-                raise UIAElementNotFoundError(f"Invalid hwnd format: {query}")
+            except ValueError as exc:
+                raise UIAElementNotFoundError(f"Invalid hwnd format: {query}") from exc
             try:
                 return desktop.window(handle=target_hwnd).wrapper_object()
             except (ElementNotFoundError, PywinautoTimeoutError) as e:
@@ -306,7 +301,7 @@ class UIADriver:
     def combo_items(
         window_id: int,
         element_id: str,
-        dropdown_timeout_ms: int = DEFAULT_COMBOBOX_DROPDOWN_TIMEOUT_MS
+        dropdown_timeout_ms: int = DEFAULT_COMBOBOX_DROPDOWN_TIMEOUT_MS  # pylint: disable=unused-argument
     ) -> list[str]:
         """Get all item texts in a UIA combobox.
 
@@ -496,10 +491,19 @@ class UIADriver:
             Children are prepended to the stack using deque.appendleft() (O(1)) to
             maintain correct DFS visitation order without materializing the entire
             children list.
+
+        Returns coordinates relative to the window (not screen absolute).
         """
+        from win32_utils import Win32API
+
         desktop = _get_uia_desktop()
         wrapper = desktop.window(handle=window_id)
         lines: list[str] = []
+
+        # Get window position to convert screen coordinates to relative
+        window_bounds = Win32API.get_window_bounds(window_id)
+        win_x = window_bounds.x if window_bounds else 0
+        win_y = window_bounds.y if window_bounds else 0
 
         visited: set[tuple[int, ...] | int] = set()
         stack: deque[tuple[object, int]] = deque([(wrapper, 0)])
@@ -513,7 +517,7 @@ class UIADriver:
                 continue
             visited.add(elem_key)
 
-            lines.append(ElementFormatter.format_uia(info, level))
+            lines.append(ElementFormatter.format_uia(info, level, win_x, win_y))
             try:
                 for child in element.iter_children():
                     stack.appendleft((child, level + 1))

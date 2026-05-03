@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 import win32gui
 
-from constants import _OPENCV_AVAILABLE, check_opencv_available, cv2, np
+from constants import check_opencv_available, cv2, np
 from models import Bounds, ElementFormatter, ElementInfo
 from uia_driver import _get_uia_desktop
 from win32_utils import Win32API
@@ -101,7 +101,7 @@ class FindDriver:
             max_results: Maximum number of results to return
 
         Returns:
-            Formatted matching result string
+            Formatted matching result string with window-relative coordinates.
         """
         query = text.strip()
         if not query:
@@ -112,6 +112,12 @@ class FindDriver:
         try:
             desktop = _get_uia_desktop()
             wrapper = desktop.window(handle=window_id)
+
+            # Get window position to convert screen coordinates to relative
+            window_bounds = Win32API.get_window_bounds(window_id)
+            win_x = window_bounds.x if window_bounds else 0
+            win_y = window_bounds.y if window_bounds else 0
+
             for child in wrapper.iter_descendants():
                 try:
                     info = child.element_info
@@ -129,12 +135,13 @@ class FindDriver:
                     runtime_id = _format_runtime_id(getattr(info, "runtime_id", None))
                     control_id = getattr(info, "control_id", None)
                     control_type = (getattr(info, "control_type", "") or "").strip() or "uia-text"
+
                     matches.append(
                         ElementInfo(
                             element_id=element_id,
                             window_id=str(window_id),
                             text=name,
-                            bounds=Bounds.from_rect(rect),
+                            bounds=Bounds.from_rect_relative(rect, win_x, win_y),
                             class_name=(getattr(info, "class_name", "") or "").strip() or None,
                             control_type=control_type,
                             control_id=control_id,
@@ -157,10 +164,18 @@ class FindDriver:
 
     @staticmethod
     def _find_text_win32(hwnd: int, text: str, exact: bool = False) -> list[ElementInfo]:
-        """Find text through Win32 EnumChildWindows enumeration (UIA fallback)."""
+        """Find text through Win32 EnumChildWindows enumeration (UIA fallback).
+
+        Returns coordinates relative to the window (not screen absolute).
+        """
         query = text.strip()
         lowered_query = query.casefold()
         matches: list[ElementInfo] = []
+
+        # Get window position to convert screen coordinates to relative
+        window_bounds = Win32API.get_window_bounds(hwnd)
+        win_x = window_bounds.x if window_bounds else 0
+        win_y = window_bounds.y if window_bounds else 0
 
         def add_match(candidate_hwnd: int) -> None:
             title = Win32API.get_window_text(candidate_hwnd)
@@ -173,12 +188,13 @@ class FindDriver:
             bounds = Win32API.get_window_bounds(candidate_hwnd)
             if bounds is None:
                 return
+
             matches.append(
                 ElementInfo(
                     element_id=str(candidate_hwnd),
                     window_id=str(hwnd),
                     text=title,
-                    bounds=bounds,
+                    bounds=Bounds.from_bounds_relative(bounds, win_x, win_y),
                     class_name=Win32API.get_class_name(candidate_hwnd),
                     control_type="win32-child",
                     source="win32-text",
@@ -221,12 +237,17 @@ class FindDriver:
             max_results: Maximum number of results to return
 
         Returns:
-            Formatted matching result string
+            Formatted matching result string with window-relative coordinates.
         """
         if text is None and control_type is None:
             raise ValueError("find_uia requires at least one filter")
         desktop = _get_uia_desktop()
         wrapper = desktop.window(handle=window_id)
+
+        # Get window position to convert screen coordinates to relative
+        window_bounds = Win32API.get_window_bounds(window_id)
+        win_x = window_bounds.x if window_bounds else 0
+        win_y = window_bounds.y if window_bounds else 0
 
         def normalize(value: Optional[str]) -> str:
             return (value or "").strip()
@@ -281,12 +302,13 @@ class FindDriver:
             element_id = FindDriver._get_uia_element_id(info)
             control_id = getattr(info, "control_id", None)
             runtime_id = _format_runtime_id(getattr(info, "runtime_id", None))
+
             results.append(
                 ElementInfo(
                     element_id=element_id,
                     window_id=str(window_id),
                     text=candidate_name or candidate_control_type or candidate_automation_id,
-                    bounds=Bounds.from_rect(rect),
+                    bounds=Bounds.from_rect_relative(rect, win_x, win_y),
                     class_name=normalize(getattr(info, "class_name", "")) or None,
                     control_type=candidate_control_type or None,
                     automation_id=candidate_automation_id or None,

@@ -28,15 +28,20 @@ Output includes:
 - `visible` - Whether visible
 - `text` - Control text
 - `control_id` - Control ID (if available)
+- `rect` - Control rectangle (window-relative coordinates)
 
 Output example:
 ```
 --- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
-- "Window Title" [control_type="Window" class="Notepad" hwnd="123456" visible=true]
-  - "Text Content" [control_type="Edit" class="Edit" hwnd="123457" visible=true]
-  - "" [control_type="Button" class="Button" hwnd="123458" visible=true control_id="1"]
+- "Window Title" [control_type="Window" class="Notepad" hwnd="123456" visible=true rect=(0,0 800x600)]
+  - "Text Content" [control_type="Edit" class="Edit" hwnd="123457" visible=true rect=(8,31 784x561)]
+  - "" [control_type="Button" class="Button" hwnd="123458" visible=true control_id="1" rect=(750,0 40x20)]
 --- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
+
+### Note
+
+- The `rect` field contains window-relative coordinates `(x,y widthxheight)`, not screen absolute coordinates. These coordinates can be used directly with `action click` commands.
 
 ## UIA Tree
 

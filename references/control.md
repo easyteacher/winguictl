@@ -37,6 +37,10 @@ python scripts\winguictl.py control --hwnd <hwnd> set-text --text "New Text"
 python scripts\winguictl.py control --hwnd <hwnd> check
 python scripts\winguictl.py control --hwnd <hwnd> uncheck
 
+# Check/uncheck with event notification (triggers BN_CLICKED/WM_COMMAND)
+python scripts\winguictl.py control --hwnd <hwnd> check-by-click
+python scripts\winguictl.py control --hwnd <hwnd> uncheck-by-click
+
 # Select an item in a combobox or listbox
 python scripts\winguictl.py control --hwnd <hwnd> combo-select 0
 python scripts\winguictl.py control --hwnd <hwnd> combo-select "Option 1"
@@ -60,8 +64,10 @@ python scripts\winguictl.py control --hwnd <hwnd> combo-items
 | `send-keystrokes` | Send keystrokes to inactive window | `--hwnd`, `keystrokes` (positional) |
 | `check` | Check a checkbox | `--hwnd` |
 | `uncheck` | Uncheck a checkbox | `--hwnd` |
+| `check-by-click` | Check a checkbox by click (triggers event handlers) | `--hwnd` |
+| `uncheck-by-click` | Uncheck a checkbox by click (triggers event handlers) | `--hwnd` |
 | `is-checked` | Get checkbox state | `--hwnd` |
-| `combo-select` | Select combobox item | `--hwnd`, `item` (positional: index or text) |
+| `combo-select` | Select combobox item | `--hwnd`, `item` (positional: index or text), `--index` (treat item as 0-based index) |
 | `combo-items` | Get combobox items | `--hwnd` |
 | `combo-selected-index` | Get combobox selected index | `--hwnd` |
 | `combo-selected-text` | Get combobox selected text | `--hwnd` |
@@ -84,7 +90,7 @@ python scripts\winguictl.py uia-control --window-id <id> --element-id "42-123456
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Button1" get-text
 
 # Set element value (for editable controls)
-python scripts\winguictl.py uia-control --window-id <id> --element-id "Edit1" set-value --value "New Text"
+python scripts\winguictl.py uia-control --window-id <id> --element-id "Edit1" set-value "New Text"
 
 # Expand/collapse a node (for TreeItem, ComboBox, etc.)
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Node1" expand
@@ -116,8 +122,11 @@ python scripts\winguictl.py uia-control --window-id <id> --element-id "Check1" g
 | Subcommand | Description | Parameters |
 |--------|------|------|
 | `click` | Click element | `--window-id`, `--element-id` |
+| `double-click` | Double-click element | `--window-id`, `--element-id` |
+| `right-click` | Right-click element | `--window-id`, `--element-id` |
 | `get-text` | Get element text | `--window-id`, `--element-id` |
-| `set-value` | Set element value | `--window-id`, `--element-id`, `--value` |
+| `get-value` | Get element value | `--window-id`, `--element-id` |
+| `set-value` | Set element value | `--window-id`, `--element-id`, `value` (positional) |
 | `set-text` | Set element text | `--window-id`, `--element-id`, `text` (positional) |
 | `set-focus` | Set focus to element | `--window-id`, `--element-id` |
 | `invoke` | Invoke element (buttons, menu items) | `--window-id`, `--element-id` |
@@ -128,7 +137,7 @@ python scripts\winguictl.py uia-control --window-id <id> --element-id "Check1" g
 | `collapse` | Collapse node | `--window-id`, `--element-id` |
 | `is-expanded` | Check if element is expanded | `--window-id`, `--element-id` |
 | `scroll` | Scroll element | `--window-id`, `--element-id`, `direction`, `--amount`, `--count` |
-| `combo-select` | Select combo box item | `--window-id`, `--element-id`, `item` (positional) |
+| `combo-select` | Select combo box item | `--window-id`, `--element-id`, `item` (positional: index or text), `--index` (treat item as 0-based index) |
 | `combo-items` | Get combo box items | `--window-id`, `--element-id` |
 | `combo-selected-text` | Get selected text in combo box | `--window-id`, `--element-id` |
 | `combo-selected-index` | Get selected index in combo box | `--window-id`, `--element-id` |

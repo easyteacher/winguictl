@@ -13,10 +13,10 @@ python scripts\winguictl.py window list
 Output is wrapped with content boundary markers:
 
 ```
---- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6g7h8 ---
+--- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 - "Window Title" [window_id="123456" bounds=(0,0 1920x1080) pid="1234" process="notepad.exe" state="maximized" foreground="true"]
   - "Child Window" [window_id="123457" bounds=(10,10 200x100) pid="1234" process="notepad.exe"]
---- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6g7h8 ---
+--- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
 The `nonce` is a randomly generated hex string that must match between the start and end markers.

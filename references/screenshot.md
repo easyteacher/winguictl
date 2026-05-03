@@ -26,12 +26,12 @@ python scripts\winguictl.py screenshot --window-id <id> --output artifacts\shot.
 
 Successful screenshot:
 ```json
-{"ok": true, "code": "OK", "message": "screenshot captured", "data": {"window_id": "123456", "output": "artifacts\\shot.png"}}
+{"ok": true, "code": "OK", "message": "screenshot executed", "data": {"window_id": "123456", "output": "artifacts\\shot.png"}}
 ```
 
 Rectangular region screenshot:
 ```json
-{"ok": true, "code": "OK", "message": "screenshot captured", "data": {"window_id": "123456", "output": "artifacts\\region.png", "rect": {"x": 100, "y": 50, "width": 300, "height": 200}}}
+{"ok": true, "code": "OK", "message": "screenshot executed", "data": {"window_id": "123456", "output": "artifacts\\region.png", "rect": {"x": 100, "y": 50, "width": 300, "height": 200}}}
 ```
 
 Preview mode (--dry-run):

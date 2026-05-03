@@ -7,9 +7,9 @@ Capture window structure snapshots to understand the internal structure and cont
 All snapshot outputs are wrapped with content boundary markers to help identify and isolate captured content:
 
 ```
---- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6g7h8 ---
+--- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 [snapshot output here]
---- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6g7h8 ---
+--- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
 The `nonce` is a randomly generated hex string that must match between the start and end markers. Always verify the nonce matches before trusting the captured content.
@@ -31,11 +31,11 @@ Output includes:
 
 Output example:
 ```
---- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6g7h8 ---
+--- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 - "Window Title" [control_type="Window" class="Notepad" hwnd="123456" visible=true]
   - "Text Content" [control_type="Edit" class="Edit" hwnd="123457" visible=true]
   - "" [control_type="Button" class="Button" hwnd="123458" visible=true control_id="1"]
---- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6g7h8 ---
+--- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
 ## UIA Tree
@@ -55,11 +55,11 @@ Output includes:
 
 Output example:
 ```
---- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6g7h8 ---
+--- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 - "Window Title" [control_type="Window" class="Notepad" automation_id="" rect=(0,0 800x600)]
   - "Document" [control_type="Edit" class="Edit" automation_id="15" rect=(0,0 784x568)]
   - "File" [control_type="MenuItem" automation_id="File" rect=(0,0 40x20)]
---- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6g7h8 ---
+--- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
 ### Getting Element IDs
@@ -88,11 +88,11 @@ Output includes:
 
 Output example:
 ```
---- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6g7h8 ---
+--- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 - "File" [rect=(0,0 40x20)]
 - "Edit" [rect=(40,0 40x20)]
 - "Hello World" [rect=(100,100 80x16)]
---- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6g7h8 ---
+--- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
 ### Warning

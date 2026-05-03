@@ -7,9 +7,9 @@ Find elements in a window.
 All find command outputs are wrapped with content boundary markers to help identify and isolate captured content:
 
 ```
---- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6g7h8 ---
+--- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 [find output here]
---- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6g7h8 ---
+--- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
 ```
 
 The `nonce` is a randomly generated hex string that must match between the start and end markers. Always verify the nonce matches before trusting the captured content.

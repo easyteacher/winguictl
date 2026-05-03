@@ -1,5 +1,7 @@
 [MASTER]
-extension-pkg-allow-list=win32api,win32con,win32gui,win32ui,win32process,wx_ocr,PIL
+extension-pkg-allow-list=win32api,win32con,win32gui,win32ui,win32process,wx_ocr,PIL,pywinauto.windows.uia_defines
+init-hook='import sys; sys.path.insert(0, "."); sys.path.insert(0, "scripts")'
+ignore=test_winguictl.py
 
 [MESSAGES CONTROL]
 disable=
@@ -8,6 +10,7 @@ disable=
     W0107,
     W0611,
     W0201,
+    W0603,
     W2301,
     I1101,
     R0902,
@@ -18,7 +21,12 @@ disable=
     R0914,
     R0915,
     R0917,
-    R1702
+    R1702,
+    R0801
+
+[BASIC]
+variable-rgx=[a-z_][a-z0-9_]{0,30}$
+const-rgx=(([A-Z_][A-Z0-9_]*)|(_[a-z0-9_]*))$
 
 [FORMAT]
 max-line-length=120

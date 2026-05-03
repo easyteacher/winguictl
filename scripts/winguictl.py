@@ -171,6 +171,7 @@ def _build_control_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the control subcommand parser (Win32 control operations)."""
     p = subparsers.add_parser("control", help="Directly control a specific control by hwnd.")
     p.add_argument("--hwnd", type=int, required=True, help="Control handle (hwnd).")
+    p.add_argument("--dry-run", action="store_true", help="Preview mode, does not execute actual operation.")
     sp = p.add_subparsers(dest="control_command", required=True)
 
     set_text = sp.add_parser("set-text", help="Set text content of an edit control.")
@@ -617,6 +618,10 @@ def _handle_control(args: argparse.Namespace) -> int:
             raise ValueError(f"control not found: hwnd {hwnd}")
 
         control_info = build_control_info(hwnd)
+
+        if args.dry_run:
+            emit_action(True, args.control_command, {**control_info, "dry_run": True})
+            return 0
 
         match args.control_command:
             case "set-text":

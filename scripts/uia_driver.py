@@ -26,8 +26,8 @@ class UIADriver:
         """Find and return the UIA element wrapper based on element_id.
 
         Search strategy:
-        1. First try pywinauto's conditional search by automation_id
-        2. Then try exact match by runtime_id via descendant traversal
+        1. First try exact match by runtime_id via descendant traversal (most reliable)
+        2. Then try pywinauto's conditional search by automation_id
         3. Raise ValueError if not found
 
         Args:
@@ -44,13 +44,6 @@ class UIADriver:
         desktop = Desktop(backend="uia")
         wrapper = desktop.window(handle=target_handle)
 
-        try:
-            candidate = wrapper.child_window(automation_id=element_id)
-            candidate.wait("ready", timeout=3)
-            return candidate
-        except Exception:
-            pass
-
         def get_runtime_id(info) -> Optional[str]:
             try:
                 raw = info if isinstance(info, UIAElementInfo) else getattr(info, "_element", info)
@@ -61,12 +54,38 @@ class UIADriver:
                 pass
             return None
 
+        def get_automation_id(info) -> Optional[str]:
+            try:
+                raw = info if isinstance(info, UIAElementInfo) else getattr(info, "_element", info)
+                aid = getattr(raw, "automation_id", None)
+                if aid:
+                    return aid.strip()
+            except Exception:
+                pass
+            return None
+
         query = element_id.strip()
+
         descendants = [wrapper] + list(wrapper.descendants())
         for candidate in descendants:
             info = candidate.element_info
-            if get_runtime_id(info) == query:
+            rid = get_runtime_id(info)
+            if rid == query:
                 return candidate
+
+        for candidate in descendants:
+            info = candidate.element_info
+            aid = get_automation_id(info)
+            if aid and aid == query:
+                return candidate
+
+        try:
+            candidate = wrapper.child_window(automation_id=element_id, found_index=0)
+            candidate.wait("visible", timeout=3)
+            return candidate
+        except Exception:
+            pass
+
         raise ValueError("UIA element not found: %s" % element_id)
 
     @staticmethod
@@ -174,18 +193,155 @@ class UIADriver:
 
     @staticmethod
     def combo_items(window_id: str, element_id: str) -> list[str]:
-        """Get all item texts in a UIA combobox."""
-        return UIADriver._get_uia_wrapper(window_id, element_id).texts()
+        """Get all item texts in a UIA combobox.
+
+        Strategy:
+        1. Try to expand and get ListItem children
+        2. If no children, search for ListItem in window near ComboBox position
+        3. Fall back to pywinauto's texts() method
+        """
+        wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+        items: list[str] = []
+
+        try:
+            combo_rect = wrapper.rectangle()
+            combo_left = combo_rect.left
+            combo_right = combo_rect.right
+            combo_top = combo_rect.top
+            combo_bottom = combo_rect.bottom
+        except Exception:
+            combo_left = combo_right = combo_top = combo_bottom = 0
+
+        was_expanded = False
+        try:
+            was_expanded = wrapper.is_expanded()
+        except Exception:
+            pass
+
+        if not was_expanded:
+            try:
+                wrapper.expand()
+            except Exception:
+                pass
+
+        try:
+            list_items = wrapper.children(control_type="ListItem")
+            for item in list_items:
+                text = item.window_text()
+                if text:
+                    items.append(text)
+                else:
+                    name = getattr(item.element_info, "name", "")
+                    if name:
+                        items.append(name)
+        except Exception:
+            pass
+
+        if not items:
+            try:
+                target_handle = int(window_id)
+                desktop = Desktop(backend="uia")
+                window = desktop.window(handle=target_handle)
+
+                all_list_items = window.children(control_type="ListItem")
+                if not all_list_items:
+                    all_list_items = []
+                    for child in window.descendants():
+                        try:
+                            if child.element_info.control_type == "ListItem":
+                                all_list_items.append(child)
+                        except Exception:
+                            pass
+
+                for item in all_list_items:
+                    try:
+                        item_rect = item.rectangle()
+                        x_near = abs(item_rect.left - combo_left) < 50 or abs(item_rect.left - combo_right) < 50
+                        vertical_near = abs(item_rect.bottom - combo_top) < 10 or abs(item_rect.top - combo_bottom) < 10
+                        if x_near and vertical_near:
+                            text = item.window_text()
+                            if text:
+                                items.append(text)
+                            else:
+                                name = getattr(item.element_info, "name", "")
+                                if name:
+                                    items.append(name)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        if not was_expanded:
+            try:
+                wrapper.collapse()
+            except Exception:
+                pass
+
+        if items:
+            return items
+
+        try:
+            texts = wrapper.texts()
+            if texts:
+                return texts
+        except Exception:
+            pass
+
+        return items
 
     @staticmethod
     def combo_selected_text(window_id: str, element_id: str) -> Optional[str]:
         """Get the selected item text in a UIA combobox."""
-        return UIADriver._get_uia_wrapper(window_id, element_id).selected_text()
+        wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+        try:
+            return wrapper.selected_text()
+        except Exception:
+            pass
+
+        try:
+            selection = wrapper.get_selection()
+            if selection:
+                return selection[0].name
+        except Exception:
+            pass
+
+        return None
 
     @staticmethod
     def combo_selected_index(window_id: str, element_id: str) -> int:
-        """Get the selected item index in a UIA combobox."""
-        return UIADriver._get_uia_wrapper(window_id, element_id).selected_index()
+        """Get the selected item index in a UIA combobox.
+
+        Strategy:
+        1. Get selected text
+        2. Get all items
+        3. Find index of selected text in items
+        """
+        wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+
+        try:
+            return wrapper.selected_index()
+        except Exception:
+            pass
+
+        selected_text = UIADriver.combo_selected_text(window_id, element_id)
+        if selected_text is None:
+            return -1
+
+        items = UIADriver.combo_items(window_id, element_id)
+        try:
+            return items.index(selected_text)
+        except ValueError:
+            pass
+
+        for i, item in enumerate(items):
+            if item.lower() == selected_text.lower():
+                return i
+            if selected_text.lower() in item.lower():
+                return i
+            if item.lower() in selected_text.lower():
+                return i
+
+        return -1
 
     @staticmethod
     def list_items(window_id: str, element_id: str) -> list[str]:

@@ -11,12 +11,14 @@ building control information, and generating boundary markers.
 
 import json
 import secrets
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from models import ActionResult, WindowInfo
-from uia_driver import UIADriver
-from win32_driver import Win32Driver
 from win32_utils import Win32API
+
+if TYPE_CHECKING:
+    from uia_driver import UIADriver
+    from win32_driver import Win32Driver
 
 
 def emit(payload: dict) -> None:
@@ -37,7 +39,7 @@ def wrap_with_boundary(content: str, nonce: str) -> str:
 def emit_action(ok: bool, verb: str, data: Optional[dict] = None) -> None:
     """Convenience method for outputting operation results, reducing repetitive ActionResult construction code."""
     code = "OK" if ok else "FAILED"
-    message = "%s executed" % verb if ok else "%s failed" % verb
+    message = f"{verb} executed" if ok else f"{verb} failed"
     emit(ActionResult(ok=ok, code=code, message=message, data=data or {}).to_dict())
 
 
@@ -50,6 +52,8 @@ def build_control_info(hwnd: int) -> dict:
     Returns:
         Dictionary with control and parent window information
     """
+    from win32_driver import Win32Driver
+
     top_level_hwnd = Win32API.get_top_level_window(hwnd)
     window_title = Win32API.get_window_text(top_level_hwnd)
     control_text = Win32API.get_window_text(hwnd)
@@ -172,6 +176,8 @@ def validate_relative_coords(x: int, y: int, bounds: "Bounds") -> None:
 
 def build_point_context(absolute_x: int, absolute_y: int) -> dict[str, Any]:
     """Build element and control info at the given screen coordinates."""
+    from uia_driver import UIADriver
+
     element_at_point = UIADriver.get_element_at_point(absolute_x, absolute_y)
     hwnd_at_point = Win32API.get_hwnd_from_point(absolute_x, absolute_y)
     control_info = build_control_info(hwnd_at_point) if hwnd_at_point else None
@@ -181,5 +187,5 @@ def build_point_context(absolute_x: int, absolute_y: int) -> dict[str, Any]:
 def emit_action_result(verb: str, dry_run: bool, data: dict[str, Any]) -> None:
     """Emit an ActionResult for action commands with proper code/message."""
     code = "DRY_RUN" if dry_run else "OK"
-    message = "%s preview generated" % verb if dry_run else "%s executed" % verb
+    message = f"{verb} preview generated" if dry_run else f"{verb} executed"
     emit(ActionResult(ok=True, code=code, message=message, data=data).to_dict())

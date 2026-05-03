@@ -11,14 +11,23 @@ Provides multiple element finding strategies:
 - find_image: Find images through OpenCV template matching
 """
 
-import win32gui
 from pathlib import Path
 from typing import Any, Optional
 
+import win32gui
 from pywinauto import Desktop
 
 from models import Bounds, ElementFormatter, ElementInfo
 from win32_utils import Win32API
+
+try:
+    import cv2
+    import numpy as np
+    _OPENCV_AVAILABLE = True
+except ImportError:
+    _OPENCV_AVAILABLE = False
+    cv2 = None
+    np = None
 
 
 class FindDriver:
@@ -77,9 +86,9 @@ class FindDriver:
                             confidence=1.0 if exact else 0.95,
                         )
                     )
-                except Exception:
+                except Exception:  # pylint: disable=broad-exception-caught
                     continue
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
 
         if not matches:
@@ -119,7 +128,7 @@ class FindDriver:
 
         add_match(hwnd)
 
-        def child_callback(child_hwnd: int, lparam: int) -> bool:
+        def child_callback(child_hwnd: int, _lparam: int) -> bool:
             if not win32gui.IsWindowVisible(child_hwnd):
                 return True
             add_match(child_hwnd)
@@ -133,11 +142,11 @@ class FindDriver:
         """Generate a unique identifier string from UIA element info."""
         control_id = getattr(info, "control_id", None)
         if control_id is not None:
-            return "uia-%s" % control_id
+            return f"uia-{control_id}"
         runtime_id = getattr(info, "runtime_id", None)
         if runtime_id is not None:
-            return "uia-%s" % "-".join(str(x) for x in runtime_id)
-        return "uia-%s" % id(info)
+            return f"uia-{'-'.join(str(x) for x in runtime_id)}"
+        return f"uia-{id(info)}"
 
     @staticmethod
     def find_uia(
@@ -222,7 +231,7 @@ class FindDriver:
         return "\n".join(ElementFormatter.format_element(r) for r in results)
 
     @staticmethod
-    def find_image(
+    def find_image(  # pylint: disable=too-many-locals
         window_id: str,
         image_path: str,
         threshold: float = 0.9,
@@ -238,18 +247,21 @@ class FindDriver:
 
         Returns:
             List of matching ElementInfo
+
+        Raises:
+            RuntimeError: If opencv-python is not installed or image cannot be loaded
         """
-        import cv2
-        import numpy as np
+        if not _OPENCV_AVAILABLE:
+            raise RuntimeError("opencv-python is required for image matching. Install with: pip install opencv-python")
 
         hwnd = int(window_id)
         _, _, width, height, data = Win32API.capture_window_bgra(hwnd)
         img_array = np.frombuffer(data, dtype=np.uint8).reshape((height, width, 4))
         img_bgr = img_array[:, :, :3]
-        template = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        template = cv2.imread(image_path, cv2.IMREAD_COLOR)  # pylint: disable=no-member
         if template is None:
-            raise RuntimeError("failed to load template image: %s" % image_path)
-        result = cv2.matchTemplate(img_bgr, template, cv2.TM_CCOEFF_NORMED)
+            raise RuntimeError(f"failed to load template image: {image_path}")
+        result = cv2.matchTemplate(img_bgr, template, cv2.TM_CCOEFF_NORMED)  # pylint: disable=no-member
         locations = np.where(result >= threshold)
         template_h, template_w = template.shape[:2]
         raw_matches: list[tuple[int, int, float]] = []

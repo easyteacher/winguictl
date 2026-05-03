@@ -540,6 +540,7 @@ The Save dialog contains multiple ComboBox types:
 | Press key | `action --window-id <id> press-key --key` | ☑ |
 | Hotkey | `action --window-id <id> hotkey --keys` | ☑ |
 | Click | `action --window-id <id> click --x --y` | ☐ |
+| Click image | `action --window-id <id> click-image --image-path` | ☑ |
 | Drag | `action --window-id <id> drag --x1 --y1 --x2 --y2` | ☐ |
 | Clear text | `action --window-id <id> clear-text` | ☐ |
 
@@ -559,14 +560,14 @@ The Save dialog contains multiple ComboBox types:
 | Find UIA by text | `find --window-id <id> uia --text` | ☑ |
 | Find UIA by control type | `find --window-id <id> uia --control-type` | ☑ |
 | Find by OCR | `find --window-id <id> ocr` | ☐ |
-| Find by image | `find --window-id <id> image` | ☐ |
+| Find by image | `find --window-id <id> image` | ☑ |
 
 ### Screenshot
 
 | Feature | Command | Status |
 |------|------|------|
 | Full window | `screenshot --window-id <id> --output` | ☑ |
-| Region | `screenshot --window-id <id> --x --y --width --height` | ☐ |
+| Region | `screenshot --window-id <id> --x --y --width --height` | ☑ |
 
 ### Win32Driver
 

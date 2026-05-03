@@ -13,7 +13,7 @@ Underlying implementation uses pywinauto's HwndWrapper for window operations.
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 import win32api
 import win32con

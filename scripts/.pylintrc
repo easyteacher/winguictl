@@ -7,11 +7,8 @@ ignore=test_winguictl.py
 disable=
     C0301,
     C0415,
-    W0107,
-    W0611,
     W0201,
     W0603,
-    W2301,
     I1101,
     R0902,
     R0903,
@@ -21,8 +18,7 @@ disable=
     R0914,
     R0915,
     R0917,
-    R1702,
-    R0801
+    R1702
 
 [BASIC]
 variable-rgx=[a-z_][a-z0-9_]{0,30}$

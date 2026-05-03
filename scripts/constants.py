@@ -11,14 +11,12 @@ Input simulation and screenshot functionality has been migrated to use pywin32
 no longer necessary.
 """
 
-from typing import Any, Optional
-
 # ── Optional Dependency Detection ────────────────────────────────────
 # Centralized detection for optional dependencies with helpful error messages
 
 try:
-    import cv2
-    import numpy as np
+    import cv2  # pylint: disable=unused-import
+    import numpy as np  # pylint: disable=unused-import
     _OPENCV_AVAILABLE = True
 except ImportError:
     _OPENCV_AVAILABLE = False
@@ -26,7 +24,7 @@ except ImportError:
     np = None  # type: ignore[misc,assignment]
 
 try:
-    import wx_ocr
+    import wx_ocr  # pylint: disable=unused-import
     _WX_OCR_AVAILABLE = True
 except ImportError:
     _WX_OCR_AVAILABLE = False

@@ -2,6 +2,18 @@
 
 Execute interaction operations.
 
+## ⚠️ SECURITY WARNING
+
+### Risk Description
+
+Action commands directly simulate mouse clicks, keyboard input, and other user interactions.
+
+### Before using action commands
+
+- Always use `--dry-run` to preview operations before execution
+- Always verify the correct `window_id` before performing actions
+- Read the complete [Security Guidelines](SECURITY.md) for detailed safety practices
+
 ## Note
 
 ### Prefer structured identifiers
@@ -9,6 +21,68 @@ Execute interaction operations.
 
 ### Re-obtain the snapshot after each action operation
 Action operations may change the UI state (such as window content, element status, or layout), so the previous snapshot may no longer be accurate. Always use `snapshot hwnd` or `snapshot uia` to get the latest UI state before performing subsequent operations.
+
+## Output Information
+
+Both `--dry-run` and actual execution output include the following information to help verify the operation:
+
+### Window Information
+- `window_id`: Window handle
+- `window_title`: Window title text
+
+### Coordinate Information
+- `relative`: Coordinates relative to the window (x, y)
+
+### Element at Point (UIA Information)
+- `element_at_point`: UIA element information at the target coordinates, including:
+  - `name`: Element name/text
+  - `control_type`: Control type (e.g., "Button", "Edit")
+  - `class_name`: Window class name
+  - `automation_id`: Automation ID (if available)
+  - `runtime_id`: Runtime ID (if available)
+- **Note**: If UIA information is not available, this field will be `null`
+
+### Control Information (Win32 Information)
+- `control_info`: Win32 control information at the target coordinates, including:
+  - `hwnd`: Control handle
+  - `control_text`: Control text
+  - `control_class`: Control class name
+  - `control_type`: Inferred control type
+  - `window_id`: Top-level window handle
+  - `window_title`: Top-level window title
+- **Note**: This field may be `null` in rare cases when no Win32 control is found at the coordinates
+
+This information helps you verify:
+1. The correct window is being targeted
+2. The coordinates point to the expected UI element
+3. Both UIA and Win32 perspectives of the target element
+4. The element type matches your expectations
+
+### Example Output
+
+When clicking within a window:
+```json
+{
+  "window_id": "25959812",
+  "window_title": "计算器",
+  "relative": {"x": 155, "y": 530},
+  "element_at_point": {
+    "name": "一",
+    "control_type": "Button",
+    "class_name": "Button",
+    "automation_id": "num1Button",
+    "runtime_id": "42-3349712-4-95"
+  },
+  "control_info": {
+    "hwnd": "3349712",
+    "control_text": "计算器",
+    "control_class": "Windows.UI.Core.CoreWindow",
+    "control_type": null,
+    "window_id": "25959812",
+    "window_title": "计算器"
+  }
+}
+```
 
 ## Click Coordinates
 
@@ -19,6 +93,19 @@ python scripts\winguictl.py action --window-id <id> click --x 100 --y 200
 # Preview click coordinates (without executing actual click)
 python scripts\winguictl.py action --window-id <id> click --x 100 --y 200 --dry-run
 ```
+
+### Coordinate Validation
+
+Coordinates must be within the window bounds:
+- Valid range: `0 <= x < window_width` and `0 <= y < window_height`
+- If coordinates are outside the bounds, an error will be raised with a message like:
+  ```
+  coordinates (9999, 9999) are outside window bounds (0-499, 0-599)
+  ```
+
+**Example**: For a window with bounds `(200, 100, 500x600)`:
+- Valid coordinates: `(0, 0)` to `(499, 599)`
+- Invalid coordinates: `(-1, 100)`, `(500, 300)`, `(100, 600)`
 
 ## Click Image
 
@@ -40,6 +127,16 @@ python scripts\winguictl.py action --window-id <id> drag --x1 100 --y1 200 --x2 
 python scripts\winguictl.py action --window-id <id> drag --x1 100 --y1 200 --x2 400 --y2 200 --dry-run
 ```
 
+### Coordinate Validation
+
+Both start and end coordinates must be within the window bounds:
+- Valid range: `0 <= x < window_width` and `0 <= y < window_height`
+- If either coordinate is outside the bounds, an error will be raised:
+  ```
+  start coordinates (-1, 100) are outside window bounds (0-499, 0-599)
+  end coordinates (9999, 9999) are outside window bounds (0-499, 0-599)
+  ```
+
 ## Type Text
 
 ```powershell
@@ -50,6 +147,15 @@ python scripts\winguictl.py action --window-id <id> type --text "hello world"
 python scripts\winguictl.py action --window-id <id> type --text "hello world" --dry-run
 ```
 
+### Execution Behavior
+
+Before typing text, the command will:
+1. Focus the target window (bring it to foreground)
+2. Move the mouse cursor to the center of the window
+3. Type the text using keyboard simulation
+
+This ensures the window is active and the mouse is within the window bounds for proper text input.
+
 ## Press Key
 
 ```powershell
@@ -59,6 +165,15 @@ python scripts\winguictl.py action --window-id <id> press-key --key enter
 # Preview key press
 python scripts\winguictl.py action --window-id <id> press-key --key enter --dry-run
 ```
+
+### Execution Behavior
+
+Before pressing the key, the command will:
+1. Focus the target window (bring it to foreground)
+2. Move the mouse cursor to the center of the window
+3. Press and release the specified key
+
+This ensures the window is active and the mouse is within the window bounds for proper key input.
 
 ### Supported Key Names
 
@@ -85,6 +200,15 @@ python scripts\winguictl.py action --window-id <id> hotkey --keys ctrl shift s
 python scripts\winguictl.py action --window-id <id> hotkey --keys ctrl a --dry-run
 ```
 
+### Execution Behavior
+
+Before executing the hotkey, the command will:
+1. Focus the target window (bring it to foreground)
+2. Move the mouse cursor to the center of the window
+3. Press all keys in order, then release in reverse order
+
+This ensures the window is active and the mouse is within the window bounds for proper hotkey execution.
+
 ### Common Hotkey Examples
 
 | Operation | Command |
@@ -107,6 +231,15 @@ python scripts\winguictl.py action --window-id <id> clear-text
 # Preview clear operation
 python scripts\winguictl.py action --window-id <id> clear-text --dry-run
 ```
+
+### Execution Behavior
+
+Before clearing text, the command will:
+1. Focus the target window (bring it to foreground)
+2. Move the mouse cursor to the center of the window
+3. Execute Ctrl+A to select all, then Delete to clear
+
+This ensures the window is active and the mouse is within the window bounds for proper text clearing.
 
 ## Subcommand Summary
 

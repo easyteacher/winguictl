@@ -42,6 +42,44 @@ class Win32API:
         return win32gui.GetClassName(hwnd)
 
     @staticmethod
+    def get_top_level_window(hwnd: int) -> int:
+        """Get the top-level parent window of a control.
+
+        Traverses up the parent chain until finding a top-level window
+        (a window with no parent or whose parent is the desktop).
+
+        Args:
+            hwnd: Control handle
+
+        Returns:
+            Top-level window handle (may be the same as input if already top-level)
+        """
+        current = hwnd
+        while True:
+            parent = win32gui.GetParent(current)
+            if parent == 0 or parent is None:
+                return current
+            current = parent
+        return current
+
+    @staticmethod
+    def get_hwnd_from_point(x: int, y: int) -> Optional[int]:
+        """Get window handle at the specified screen coordinates.
+
+        Args:
+            x: Absolute X coordinate on screen
+            y: Absolute Y coordinate on screen
+
+        Returns:
+            Window handle at the point, or None if not found
+        """
+        try:
+            hwnd = win32gui.WindowFromPoint((x, y))
+            return hwnd if hwnd else None
+        except Exception:
+            return None
+
+    @staticmethod
     def get_window_bounds(hwnd: int) -> Optional[Bounds]:
         """Get window screen coordinates and dimensions."""
         try:
@@ -171,6 +209,21 @@ class Win32API:
             win32api.SetCursorPos((cx, cy))
             time.sleep(duration_ms / 1000 / steps)
         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+
+    @staticmethod
+    def move_mouse_to_window_center(window_id: int) -> None:
+        """Move mouse cursor to the center of the specified window.
+
+        Args:
+            window_id: Window handle
+        """
+        bounds = Win32API.get_window_bounds(window_id)
+        if bounds is None:
+            return
+        center_x = bounds.x + bounds.width // 2
+        center_y = bounds.y + bounds.height // 2
+        win32api.SetCursorPos((center_x, center_y))
+        time.sleep(0.05)
 
     @staticmethod
     def send_type_text(text: str) -> None:

@@ -26,3 +26,29 @@ scripts/
 | `win32_utils.py` | Low-level input simulation (mouse click/drag, keyboard input, screenshot) | pywin32, ctypes (PrintWindow only) |
 | `constants.py` | Virtual key code mapping table, Win32 control type mapping table | — |
 | `models.py` | Data class definitions | dataclasses |
+
+## Documentation Style
+
+When writing or editing documentation files (e.g., SKILL.md, SECURITY.md, reference docs), prefer using Markdown headings instead of code block comments to describe commands or steps. This improves readability and structure.
+
+**Example:**
+
+❌ **Avoid:**
+```powershell
+# Step 1: Find the target window
+python scripts\winguictl.py window list
+
+# Step 2: Focus the window
+python scripts\winguictl.py window --window-id <id> focus
+```
+
+✅ **Prefer:**
+#### Step 1: Find the target window
+```powershell
+python scripts\winguictl.py window list
+```
+
+#### Step 2: Focus the window
+```powershell
+python scripts\winguictl.py window --window-id <id> focus
+```

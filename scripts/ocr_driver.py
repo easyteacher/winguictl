@@ -12,7 +12,6 @@ Depends on wx_ocr library and Pillow library.
 
 import os
 import tempfile
-from typing import Optional
 
 import wx_ocr
 from PIL import Image

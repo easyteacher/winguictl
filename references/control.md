@@ -2,6 +2,18 @@
 
 Directly control specific controls, including Win32 controls and UIA elements.
 
+## ⚠️ SECURITY WARNING
+
+### Risk Description
+
+Control commands directly manipulate UI elements through their handles (HWND) or identifiers.
+
+### Before using control commands
+
+- Always verify the correct `hwnd`, `automation_id`, or `runtime_id` before performing operations
+- Use `snapshot hwnd` or `snapshot uia` to identify the correct control identifiers
+- Read the complete [Security Guidelines](SECURITY.md) for detailed safety practices
+
 ## Note
 
 ### Re-obtain the snapshot after each action operation

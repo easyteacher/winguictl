@@ -264,3 +264,40 @@ class UIADriver:
 
         walk(wrapper, 0)
         return "\n".join(lines)
+
+    @staticmethod
+    def get_element_at_point(absolute_x: int, absolute_y: int) -> Optional[dict]:
+        """Get UIA element information at the specified screen coordinates.
+
+        Args:
+            absolute_x: Absolute X coordinate on screen
+            absolute_y: Absolute Y coordinate on screen
+
+        Returns:
+            Dictionary with element information or None if no element found
+        """
+        try:
+            from pywinauto.uia_element_info import UIAElementInfo
+            element_info = UIAElementInfo.from_point(absolute_x, absolute_y)
+            if element_info is None:
+                return None
+
+            name = (getattr(element_info, "name", "") or "").strip()
+            control_type = (getattr(element_info, "control_type", "") or "").strip() or None
+            class_name = (getattr(element_info, "class_name", "") or "").strip() or None
+            automation_id = (getattr(element_info, "automation_id", "") or "").strip() or None
+            runtime_id = getattr(element_info, "runtime_id", None)
+
+            result = {
+                "name": name,
+                "control_type": control_type,
+                "class_name": class_name,
+                "automation_id": automation_id,
+            }
+
+            if runtime_id is not None:
+                result["runtime_id"] = "-".join(str(x) for x in runtime_id)
+
+            return result
+        except Exception:
+            return None

@@ -25,33 +25,6 @@ The skill includes a standalone CLI script:
 
 ## Quick start
 
-### Complete automation workflow example
-
-#### Step 1: Find the target window
-```powershell
-python scripts\winguictl.py window list
-```
-
-#### Step 2: Get window structure to identify controls
-```powershell
-python scripts\winguictl.py snapshot --window-id 12345 uia
-```
-
-#### Step 3: Find specific elements
-```powershell
-python scripts\winguictl.py find --window-id 12345 uia --text "Submit"
-```
-
-#### Step 4: Interact with the element
-```powershell
-python scripts\winguictl.py uia-control --window-id 12345 --element-id "SubmitButton" click
-```
-
-#### Step 5: Verify the result
-```powershell
-python scripts\winguictl.py snapshot --window-id 12345 uia
-```
-
 ### Common use cases
 
 #### Click a UIA button by its automation_id
@@ -85,31 +58,107 @@ For detailed command documentation, see:
 - [Control](references/control.md) - Directly control specific controls (Win32 and UIA)
 - [Screenshot](references/screenshot.md) - Capture window screenshots
 
-## Workflow
+## Workflow & Best Practices
 
-1. List windows and identify the correct target — `window list` shows hierarchical parent-child relationships with indentation.
-2. Prefer exact window ids over fuzzy titles when possible.
-3. Use `window focus` to bring the target window to the foreground before interacting.
-4. Use `window minimize/maximize/restore/close/move/resize` to control window state before interacting.
-5. Use `snapshot hwnd/uia/ocr` to inspect window structure when locators are not obvious.
-6. Prefer HWND and UIA locators over OCR and image matching — structured identifiers (`hwnd`, `automation_id`, `runtime_id`) are more reliable and deterministic than pixel-based approaches.
-   - Prefer `control` / `uia-control` commands over `action` commands — control commands target elements directly via structured identifiers, while action commands rely on coordinates or image matching which are less precise and more brittle.
-   - For UIA controls, run `snapshot uia` first to get element `automation_id` or `runtime_id`, then use `uia-control` commands to interact.
-   - For Win32 controls, run `snapshot hwnd` to get control `hwnd`, then use `control` commands to interact.
-   - Use `find ocr` only for rendered text that is not exposed through UIA or window text.
-   - Use `find image` / `click-image` only for iconography, canvas content, or custom-painted controls where no structured locator exists.
-   - Use `action` commands (click, drag, type, etc.) only when neither control commands nor image matching are applicable.
-   - Use relative window coordinates only when neither structured locators nor image matching are available.
-7. Inspect window structure again after each step to confirm the changes.
-8. Capture screenshots before or after important steps.
-9. Return structured results, artifact paths, and any follow-up risk.
+### Step-by-Step Workflow
 
-## Operating Rules
+Follow this workflow for reliable automation:
 
-- Coordinates use `relative_rect` (window-relative) by default. Use `absolute_rect` for screen coordinates. For coordinate system details, see [Coordinate Systems](references/coordinates.md).
-- Use `--dry-run` when you need to preview coordinates or confirm intent.
-- Report the exact window title and `window_id` you acted on.
-- Action operations may change UI state; always re-obtain snapshots before subsequent operations. For workflow notes, see [Workflow Notes](references/workflow-notes.md).
+1. **List windows** and identify the correct target — `window list` shows hierarchical parent-child relationships with indentation.
+   ```powershell
+   python scripts\winguictl.py window list
+   ```
+
+2. **Focus the window** to bring it to the foreground before interacting.
+   ```powershell
+   python scripts\winguictl.py window --window-id 12345 focus
+   ```
+
+3. **Control window state** as needed — minimize/maximize/restore/close/move/resize.
+
+4. **Inspect window structure** with `snapshot hwnd/uia/ocr` when locators are not obvious.
+   ```powershell
+   python scripts\winguictl.py snapshot --window-id 12345 uia
+   ```
+
+5. **Find elements** if needed
+   ```powershell
+   python scripts\winguictl.py find --window-id 12345 uia --text "Submit"
+   ```
+
+6. **Interact with elements** (preview with `--dry-run` first)
+   ```powershell
+   python scripts\winguictl.py uia-control --window-id 12345 --element-id "SubmitButton" click
+   ```
+
+7. **Re-obtain snapshots** after each action to confirm changes and get updated UI state.
+
+8. **Capture screenshots** before or after important steps.
+
+9. **Return structured results**, artifact paths, and any follow-up risk.
+
+### Preferred Locator Strategy
+
+For more reliable automation, use this priority order:
+
+1. **HWND** (Win32 controls) - Most reliable
+   ```powershell
+   python scripts\winguictl.py control --hwnd 12345 click
+   ```
+
+2. **automation_id/runtime_id** (UIA elements) - Reliable
+   ```powershell
+   python scripts\winguictl.py uia-control --window-id 12345 --element-id "Button1" click
+   ```
+
+3. **Image matching** - Less reliable, use for iconography or canvas content
+   ```powershell
+   python scripts\winguictl.py action --window-id 12345 click-image --image-path button.png
+   ```
+
+4. **Coordinates** - Least reliable, use as last resort
+   ```powershell
+   python scripts\winguictl.py action --window-id 12345 click --relative-x 100 --relative-y 200
+   ```
+
+### Finding the Right Approach
+
+| Scenario | Recommended Command |
+|----------|-------------------|
+| Win32 controls with known hwnd | `control --hwnd <hwnd> click` |
+| UIA controls with automation_id | `uia-control --element-id <id> click` |
+| UIA controls without automation_id | `uia-control --element-id <runtime_id> click` |
+| Text-based UI elements | `find ocr` + `action click` |
+| Icon/image buttons | `find image` + `action click` |
+| Unknown element at known position | `action click --relative-x/y` |
+
+### Key Operating Rules
+
+- **Coordinate system**: Coordinates use `relative_rect` (window-relative) by default. Use `absolute_rect` for screen coordinates. For coordinate system details, see [Coordinate Systems](references/coordinates.md).
+- **Dry-run mode**: Use `--dry-run` when you need to preview coordinates or confirm intent before executing.
+- **Reporting**: Always report the exact window title and `window_id` you acted on.
+- **Re-snapshot**: Action operations may change UI state; always re-obtain snapshots before subsequent operations.
+
+### UI State Management
+
+Action operations may change the UI state:
+- Window content may change
+- Element positions may shift
+- New elements may appear
+- Existing elements may disappear
+
+**Always re-run `snapshot` commands after actions to get the latest UI state.**
+
+```powershell
+# 1. Get initial snapshot
+python scripts\winguictl.py snapshot --window-id 12345 uia
+
+# 2. Perform action
+python scripts\winguictl.py uia-control --window-id 12345 --element-id "NextButton" click
+
+# 3. Get updated snapshot before next action
+python scripts\winguictl.py snapshot --window-id 12345 uia
+```
 
 ## Security Considerations
 

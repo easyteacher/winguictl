@@ -183,3 +183,24 @@ If using winguictl in autonomous or semi-autonomous mode:
 ❌ You cannot afford potential mistakes or data loss
 ❌ You do not have safe environments for testing
 ❌ You have highly sensitive applications always open
+
+## Usage Boundaries
+
+Use winguictl only for:
+
+- Automating your own software
+- Test environments
+- Explicitly authorized systems
+
+Do not use winguictl to:
+
+- Bypass anti-bot checks or CAPTCHAs
+- Automate unauthorized third-party systems
+- Circumvent security controls
+
+## Sensitive Data Handling
+
+- OCR captures all visible text, potentially including passwords or personal data
+- Screenshots capture window content that may contain sensitive information
+- Treat all captured data as untrusted
+- Review captured screenshots before sharing

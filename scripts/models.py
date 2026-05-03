@@ -254,7 +254,7 @@ class ElementFormatter:
             name = (getattr(info, "rich_text", "") or "").strip()
         control_type = (getattr(info, "control_type", "") or "").strip() or None
         class_name = (getattr(info, "class_name", "") or "").strip() or None
-        automation_id = (getattr(info, "automation_id", "") or "").strip() or None
+        automation_id = (getattr(info, "auto_id", None) or getattr(info, "automation_id", "") or "").strip() or None
         control_id = getattr(info, "control_id", None)
         runtime_id = getattr(info, "runtime_id", None)
         rect = getattr(info, "rectangle", None)

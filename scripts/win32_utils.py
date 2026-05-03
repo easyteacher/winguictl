@@ -205,14 +205,19 @@ class Win32API:
         if width <= 0 or height <= 0:
             raise RuntimeError(f"invalid window size: {width}x{height}")
 
-        hdc_window = win32gui.GetWindowDC(window_id)
-        dc = win32ui.CreateDCFromHandle(hdc_window)
-        memdc = dc.CreateCompatibleDC()
-        bmp = win32ui.CreateBitmap()
-        bmp.CreateCompatibleBitmap(dc, width, height)
-        memdc.SelectObject(bmp)
+        hdc_window = None
+        dc = None
+        memdc = None
+        bmp = None
 
         try:
+            hdc_window = win32gui.GetWindowDC(window_id)
+            dc = win32ui.CreateDCFromHandle(hdc_window)
+            memdc = dc.CreateCompatibleDC()
+            bmp = win32ui.CreateBitmap()
+            bmp.CreateCompatibleBitmap(dc, width, height)
+            memdc.SelectObject(bmp)
+
             result = ctypes.windll.user32.PrintWindow(window_id, memdc.GetSafeHdc(), PW_RENDERFULLCONTENT)
             if not result:
                 _logger.debug("PrintWindow failed for hwnd %d, falling back to BitBlt", window_id)
@@ -223,10 +228,26 @@ class Win32API:
                 raise RuntimeError(f"failed to capture window bitmap for hwnd {window_id}")
             data = bytearray(bits)
         finally:
-            win32gui.DeleteObject(bmp.GetHandle())
-            memdc.DeleteDC()
-            dc.DeleteDC()
-            win32gui.ReleaseDC(window_id, hdc_window)
+            if bmp is not None:
+                try:
+                    win32gui.DeleteObject(bmp.GetHandle())
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass
+            if memdc is not None:
+                try:
+                    memdc.DeleteDC()
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass
+            if dc is not None:
+                try:
+                    dc.DeleteDC()
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass
+            if hdc_window is not None:
+                try:
+                    win32gui.ReleaseDC(window_id, hdc_window)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass
         return x, y, width, height, data
 
     @staticmethod
@@ -293,7 +314,9 @@ class Win32API:
         inputs[0].union.mi.dy = start_y
         inputs[0].union.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE
         inputs[1].type = INPUT_MOUSE
-        inputs[1].union.mi.dwFlags = MOUSEEVENTF_LEFTDOWN
+        inputs[1].union.mi.dx = start_x
+        inputs[1].union.mi.dy = start_y
+        inputs[1].union.mi.dwFlags = MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_ABSOLUTE
         ctypes.windll.user32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(INPUT))
         time.sleep(DEFAULT_DRAG_START_DELAY_MS / 1000)
 
@@ -321,7 +344,9 @@ class Win32API:
 
         up_input = INPUT()
         up_input.type = INPUT_MOUSE
-        up_input.union.mi.dwFlags = MOUSEEVENTF_LEFTUP
+        up_input.union.mi.dx = end_x
+        up_input.union.mi.dy = end_y
+        up_input.union.mi.dwFlags = MOUSEEVENTF_LEFTUP | MOUSEEVENTF_ABSOLUTE
         ctypes.windll.user32.SendInput(1, ctypes.byref(up_input), ctypes.sizeof(INPUT))
 
     @staticmethod

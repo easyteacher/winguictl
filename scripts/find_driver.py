@@ -11,15 +11,16 @@ Provides multiple element finding strategies:
 - find_image: Find images through OpenCV template matching
 """
 
+import itertools
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 import win32gui
-from pywinauto import Desktop
 
 from constants import _OPENCV_AVAILABLE, check_opencv_available, cv2, np
 from models import Bounds, ElementFormatter, ElementInfo
+from uia_driver import _get_uia_desktop
 from win32_utils import Win32API
 
 if TYPE_CHECKING:
@@ -27,22 +28,68 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-_uia_desktop: Optional[Desktop] = None
+
+def _format_runtime_id(runtime_id_raw: Any) -> Optional[str]:
+    """Format runtime_id tuple/list into a dash-separated string.
+
+    Note: UIAElementInfo.runtime_id returns 0 on COMError, not None.
+    This function handles both None and 0 as invalid values.
+    """
+    if not runtime_id_raw:
+        return None
+    return "-".join(str(x) for x in runtime_id_raw)
 
 
-def _get_uia_desktop() -> Desktop:
-    """Get or create a cached UIA Desktop instance."""
-    global _uia_desktop
-    if _uia_desktop is None:
-        _uia_desktop = Desktop(backend="uia")
-    return _uia_desktop
+def _is_valid_rect(rect) -> bool:
+    """Check if rectangle has valid non-zero dimensions.
+
+    Note: UIAElementInfo.rectangle never returns None - it returns a zeroed RECT()
+    on COMError. This function checks for both None and zero dimensions.
+    """
+    if rect is None:
+        return False
+    try:
+        return rect.right > rect.left and rect.bottom > rect.top
+    except (AttributeError, TypeError):
+        return False
 
 
 class FindDriver:
     """Driver class for element finding operations."""
 
     @staticmethod
-    def find_text(window_id: int, text: str, exact: bool = False) -> str:
+    def _get_uia_element_id(info: "UIAElementInfo") -> str:
+        """Generate a unique identifier string from UIA element info.
+
+        Always returns a UIA-compatible identifier that can be resolved by
+        _get_uia_wrapper(). Priority order:
+        1. runtime_id (if available and non-zero; UIAElementInfo returns 0 on COMError)
+        2. automation_id (if available and non-empty)
+        3. handle with uia- prefix (if available and non-zero)
+        4. control_id with uia- prefix (if available)
+        5. fallback to id(info)
+
+        Note:
+            A plain hwnd string (e.g. "12345") is NOT used because _get_uia_wrapper
+            interprets it as an automation_id search, which would fail. Instead,
+            handles are prefixed with "uia-" to use runtime_id-style lookup.
+        """
+        runtime_id_raw = getattr(info, "runtime_id", None)
+        if runtime_id_raw:
+            return f"uia-{_format_runtime_id(runtime_id_raw)}"
+        automation_id = (getattr(info, "auto_id", None) or getattr(info, "automation_id", "") or "").strip()
+        if automation_id:
+            return automation_id
+        handle = getattr(info, "handle", None)
+        if handle:
+            return f"uia-hwnd-{handle}"
+        control_id = getattr(info, "control_id", None)
+        if control_id is not None:
+            return f"uia-{control_id}"
+        return f"uia-{id(info)}"
+
+    @staticmethod
+    def find_text(window_id: int, text: str, exact: bool = False, max_results: int = 50) -> str:
         """Find specified text in the window.
 
         Prioritizes UIA tree search; falls back to Win32 enumeration if no results found.
@@ -51,6 +98,7 @@ class FindDriver:
             window_id: Window handle
             text: Text to find
             exact: Whether to match exactly
+            max_results: Maximum number of results to return
 
         Returns:
             Formatted matching result string
@@ -75,18 +123,12 @@ class FindDriver:
                     if not is_match:
                         continue
                     rect = getattr(info, "rectangle", None)
-                    if rect is None:
+                    if not _is_valid_rect(rect):
                         continue
+                    element_id = FindDriver._get_uia_element_id(info)
+                    runtime_id = _format_runtime_id(getattr(info, "runtime_id", None))
                     control_id = getattr(info, "control_id", None)
-                    runtime_id_raw = getattr(info, "runtime_id", None)
-                    runtime_id = "-".join(str(x) for x in runtime_id_raw) if runtime_id_raw else None
-                    handle = getattr(info, "handle", None)
-                    if handle:
-                        element_id = str(handle)
-                    elif runtime_id:
-                        element_id = f"uia-{runtime_id}"
-                    else:
-                        element_id = f"uia-{control_id}" if control_id else "uia-unknown"
+                    control_type = (getattr(info, "control_type", "") or "").strip() or "uia-text"
                     matches.append(
                         ElementInfo(
                             element_id=element_id,
@@ -94,13 +136,15 @@ class FindDriver:
                             text=name,
                             bounds=Bounds.from_rect(rect),
                             class_name=(getattr(info, "class_name", "") or "").strip() or None,
-                            control_type="uia-text",
+                            control_type=control_type,
                             control_id=control_id,
                             runtime_id=runtime_id,
                             source="uia",
                             confidence=1.0 if exact else 0.95,
                         )
                     )
+                    if len(matches) >= max_results:
+                        break
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     _logger.debug("Error processing UIA descendant: %s", e)
                     continue
@@ -154,17 +198,6 @@ class FindDriver:
         return matches
 
     @staticmethod
-    def _get_uia_element_id(info: "UIAElementInfo") -> str:
-        """Generate a unique identifier string from UIA element info."""
-        control_id = getattr(info, "control_id", None)
-        if control_id is not None:
-            return f"uia-{control_id}"
-        runtime_id = getattr(info, "runtime_id", None)
-        if runtime_id is not None:
-            return f"uia-{'-'.join(str(x) for x in runtime_id)}"
-        return f"uia-{id(info)}"
-
-    @staticmethod
     def find_uia(
         window_id: int,
         text: Optional[str] = None,
@@ -175,6 +208,10 @@ class FindDriver:
         """Find controls through the UIA tree.
 
         At least one of text or control_type filter must be provided.
+
+        Note: The search includes the window wrapper itself as the first candidate.
+        If the window's own name/control_type matches the filter, it will appear
+        in results. This is intentional to support finding top-level window properties.
 
         Args:
             window_id: Window handle
@@ -190,48 +227,66 @@ class FindDriver:
             raise ValueError("find_uia requires at least one filter")
         desktop = _get_uia_desktop()
         wrapper = desktop.window(handle=window_id)
-        descendants = [wrapper] + wrapper.descendants()
 
         def normalize(value: Optional[str]) -> str:
             return (value or "").strip()
 
-        def matches_filter(candidate_text: str, query: Optional[str]) -> bool:
-            if query is None:
-                return True
-            normalized_query = normalize(query)
-            normalized_text = normalize(candidate_text)
-            if exact:
-                return normalized_text.casefold() == normalized_query.casefold()
-            return normalized_query.casefold() in normalized_text.casefold()
+        uia_control_type: Optional[str] = None
+        if control_type is not None and exact:
+            try:
+                from pywinauto.windows.uia_defines import IUIA  # pylint: disable=import-error,no-name-in-module
+                ct_lower = control_type.strip().casefold()
+                for k in IUIA().known_control_types:
+                    if k.casefold() == ct_lower:
+                        uia_control_type = k
+                        break
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                _logger.debug("Failed to resolve UIA control type: %s", e)
+
+        lowered_text = normalize(text).casefold() if text is not None else None
+        lowered_ct = normalize(control_type).casefold() if control_type is not None else None
+
+        iter_kwargs = {"control_type": uia_control_type} if uia_control_type else {}
+        candidates = itertools.chain([wrapper], wrapper.iter_descendants(**iter_kwargs))
 
         results: list[ElementInfo] = []
-        for candidate in descendants:
+        for candidate in candidates:
             info = candidate.element_info
             candidate_name = normalize(getattr(info, "name", ""))
             candidate_control_type = normalize(getattr(info, "control_type", ""))
-            candidate_automation_id = normalize(getattr(info, "automation_id", ""))
-            if text is not None and not matches_filter(candidate_name, text):
-                continue
-            if control_type is not None and not matches_filter(candidate_control_type, control_type):
-                continue
+
+            if text is not None:
+                name_cf = candidate_name.casefold()
+                if exact:
+                    if name_cf != lowered_text:
+                        continue
+                else:
+                    if lowered_text not in name_cf:
+                        continue
+
+            if control_type is not None and uia_control_type is None:
+                ct_cf = candidate_control_type.casefold()
+                if exact:
+                    if ct_cf != lowered_ct:
+                        continue
+                else:
+                    if lowered_ct not in ct_cf:
+                        continue
+
             rect = getattr(info, "rectangle", None)
-            if rect is None:
+            if not _is_valid_rect(rect):
                 continue
+
+            candidate_automation_id = normalize(getattr(info, "auto_id", None) or getattr(info, "automation_id", ""))
             element_id = FindDriver._get_uia_element_id(info)
             control_id = getattr(info, "control_id", None)
-            runtime_id_raw = getattr(info, "runtime_id", None)
-            runtime_id = "-".join(str(x) for x in runtime_id_raw) if runtime_id_raw else None
+            runtime_id = _format_runtime_id(getattr(info, "runtime_id", None))
             results.append(
                 ElementInfo(
                     element_id=element_id,
                     window_id=str(window_id),
                     text=candidate_name or candidate_control_type or candidate_automation_id,
-                    bounds=Bounds(
-                        x=int(rect.left),
-                        y=int(rect.top),
-                        width=int(rect.right - rect.left),
-                        height=int(rect.bottom - rect.top),
-                    ),
+                    bounds=Bounds.from_rect(rect),
                     class_name=normalize(getattr(info, "class_name", "")) or None,
                     control_type=candidate_control_type or None,
                     automation_id=candidate_automation_id or None,

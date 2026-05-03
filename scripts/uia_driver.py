@@ -11,9 +11,15 @@ and combobox/list/tab/slider operations.
 Also provides snapshot functionality for UIA element trees.
 """
 
+import itertools
 import logging
-import time
-from typing import TYPE_CHECKING, Any, Optional, Union
+import re
+import threading
+from collections import deque
+from typing import TYPE_CHECKING, Optional
+
+import win32con
+import win32gui
 
 from pywinauto import Desktop
 from pywinauto.uia_element_info import UIAElementInfo
@@ -22,7 +28,6 @@ from pywinauto.timings import TimeoutError as PywinautoTimeoutError
 
 from constants import (
     DEFAULT_COMBOBOX_DROPDOWN_TIMEOUT_MS,
-    DEFAULT_COMBOBOX_POLL_INTERVAL_MS,
     DEFAULT_UIA_WAIT_TIMEOUT_SEC,
 )
 from models import ElementFormatter
@@ -33,13 +38,20 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 _uia_desktop: Optional[Desktop] = None
+_uia_desktop_lock = threading.Lock()
 
 
 def _get_uia_desktop() -> Desktop:
-    """Get or create a cached UIA Desktop instance."""
+    """Get or create a cached UIA Desktop instance.
+
+    Thread-safe: uses a lock to prevent race conditions when
+    multiple threads access the desktop for the first time.
+    """
     global _uia_desktop
     if _uia_desktop is None:
-        _uia_desktop = Desktop(backend="uia")
+        with _uia_desktop_lock:
+            if _uia_desktop is None:
+                _uia_desktop = Desktop(backend="uia")
     return _uia_desktop
 
 
@@ -71,67 +83,81 @@ class UIADriver:
         """Find and return the UIA element wrapper based on element_id.
 
         Search strategy:
-        1. First try exact match by runtime_id via descendant traversal (most reliable)
-        2. Then try pywinauto's conditional search by automation_id
-        3. Raise UIAElementNotFoundError if not found
+        1. Strip "uia-" prefix if present (added by _get_uia_element_id)
+        2. Detect query format: runtime_id (hyphen-separated integers) vs automation_id
+        3. Search by runtime_id if format matches, otherwise by automation_id
+        4. Fall back to pywinauto's conditional search by automation_id
+        5. Raise UIAElementNotFoundError if not found
 
         Args:
             window_id: Parent window handle
-            element_id: Element identifier (automation_id or runtime_id)
+            element_id: Element identifier (automation_id, runtime_id, or uia-prefixed id)
 
         Returns:
             Matched pywinauto UIA wrapper (UiaWrapper)
 
         Raises:
             UIAElementNotFoundError: No matching element found
+
+        Note:
+            The visited set tracks runtime_ids to skip duplicate elements, but cannot
+            prevent infinite loops if iter_descendants() itself cycles due to a buggy
+            UIA provider. For tree snapshotting, use snapshot_uia_tree() which uses
+            its own stack-based DFS with cycle detection.
         """
         desktop = _get_uia_desktop()
         wrapper = desktop.window(handle=window_id)
 
-        def get_runtime_id(info) -> Optional[str]:
-            try:
-                raw = info if isinstance(info, UIAElementInfo) else getattr(info, "_element", info)
-                rid = getattr(raw, "runtime_id", None)
-                if rid is not None:
-                    return "-".join(str(x) for x in rid)
-            except (AttributeError, TypeError) as e:
-                _logger.debug("failed to get runtime_id: %s", e)
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.debug("unexpected error getting runtime_id: %s", e)
-            return None
-
-        def get_automation_id(info) -> Optional[str]:
-            try:
-                raw = info if isinstance(info, UIAElementInfo) else getattr(info, "_element", info)
-                aid = getattr(raw, "automation_id", None)
-                if aid:
-                    return aid.strip()
-            except (AttributeError, TypeError) as e:
-                _logger.debug("failed to get automation_id: %s", e)
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.debug("unexpected error getting automation_id: %s", e)
-            return None
-
         query = element_id.strip()
 
-        descendants = [wrapper] + wrapper.descendants()
-        for candidate in descendants:
-            info = candidate.element_info
-            rid = get_runtime_id(info)
-            if rid == query:
-                return candidate
-            aid = get_automation_id(info)
-            if aid and aid == query:
-                return candidate
+        if query.startswith("uia-"):
+            query = query[4:]
 
-        try:
-            candidate = wrapper.child_window(automation_id=element_id, found_index=0)
-            candidate.wait("visible", timeout=DEFAULT_UIA_WAIT_TIMEOUT_SEC)
-            return candidate
-        except (ElementNotFoundError, PywinautoTimeoutError) as e:
-            _logger.debug("child_window search for automation_id=%s failed: %s", element_id, e)
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            _logger.debug("unexpected error in child_window search: %s", e)
+        if query.startswith("hwnd-"):
+            hwnd_str = query[5:]
+            try:
+                target_hwnd = int(hwnd_str)
+            except ValueError:
+                raise UIAElementNotFoundError(f"Invalid hwnd format: {query}")
+            try:
+                return desktop.window(handle=target_hwnd).wrapper_object()
+            except (ElementNotFoundError, PywinautoTimeoutError) as e:
+                _logger.debug("hwnd lookup for %s failed: %s", target_hwnd, e)
+            raise UIAElementNotFoundError(f"UIA element not found by hwnd: {target_hwnd}")
+
+        is_runtime_id_query = bool(re.match(r"^-?\d+(?:--?\d+)+$", query))
+
+        visited: set[tuple[int, ...] | int] = set()
+        candidates = itertools.chain([wrapper], wrapper.iter_descendants())
+        for candidate in candidates:
+            info = candidate.element_info
+            rid = getattr(info, "runtime_id", None)
+            if rid:
+                rid_tuple = tuple(rid)
+            else:
+                rid_tuple = id(info)
+            if rid_tuple in visited:
+                continue
+            visited.add(rid_tuple)
+            if rid:
+                rid_str = "-".join(str(x) for x in rid)
+                if is_runtime_id_query and rid_str == query:
+                    return candidate
+            if not is_runtime_id_query:
+                aid = getattr(info, "auto_id", None) or getattr(info, "automation_id", None)
+                if aid and aid.strip() == query:
+                    return candidate
+
+        if not is_runtime_id_query:
+            try:
+                try:
+                    return wrapper.child_window(auto_id=element_id, found_index=0).wrapper_object()
+                except TypeError:
+                    return wrapper.child_window(automation_id=element_id, found_index=0).wrapper_object()
+            except (ElementNotFoundError, PywinautoTimeoutError) as e:
+                _logger.debug("child_window search for auto_id=%s failed: %s", element_id, e)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                _logger.debug("unexpected error in child_window search: %s", e)
 
         raise UIAElementNotFoundError(f"UIA element not found: {element_id}")
 
@@ -181,22 +207,23 @@ class UIADriver:
 
         Raises:
             UIAOperationError: If text cannot be set via either method
+
+        Note:
+            For Edit controls, uses set_text() which replaces the entire content.
+            For other controls with ValuePattern, uses SetValue() directly.
         """
         wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+        from pywinauto.controls.uia_controls import EditWrapper as UIAEditWrapper
+        if isinstance(wrapper, UIAEditWrapper):
+            try:
+                wrapper.set_text(text)
+                return
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                _logger.debug("set_text failed on EditWrapper: %s", e)
         try:
-            wrapper.set_text(text, 0, len(text))
-        except (AttributeError, TypeError) as e:
-            _logger.debug("set_text failed, falling back to SetValue: %s", e)
-            try:
-                wrapper.iface_value.SetValue(text)
-            except (AttributeError, TypeError) as inner_e:
-                raise UIAOperationError(f"Failed to set text via SetValue: {inner_e}") from inner_e
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            _logger.debug("set_text failed, falling back to SetValue: %s", e)
-            try:
-                wrapper.iface_value.SetValue(text)
-            except Exception as inner_e:  # pylint: disable=broad-exception-caught
-                raise UIAOperationError(f"Failed to set text: {inner_e}") from inner_e
+            wrapper.iface_value.SetValue(text)
+        except Exception as inner_e:  # pylint: disable=broad-exception-caught
+            raise UIAOperationError(f"Failed to set text: {inner_e}") from inner_e
 
     @staticmethod
     def set_focus(window_id: int, element_id: str) -> None:
@@ -267,8 +294,6 @@ class UIADriver:
         """
         try:
             return UIADriver._get_uia_wrapper(window_id, element_id).is_expanded()
-        except (AttributeError, TypeError):
-            return False
         except Exception:  # pylint: disable=broad-exception-caught
             return False
 
@@ -278,123 +303,6 @@ class UIADriver:
         UIADriver._get_uia_wrapper(window_id, element_id).select(item)
 
     @staticmethod
-    def _get_combo_items_from_children(wrapper) -> list[str]:
-        """Extract items from combobox children (ListItem controls).
-
-        Args:
-            wrapper: pywinauto wrapper for the combobox
-
-        Returns:
-            List of item text strings
-        """
-        items: list[str] = []
-        try:
-            list_items = wrapper.children(control_type="ListItem")
-            for item in list_items:
-                text = item.window_text()
-                if text:
-                    items.append(text)
-                else:
-                    name = getattr(item.element_info, "name", "")
-                    if name:
-                        items.append(name)
-        except (AttributeError, TypeError):
-            pass
-        except Exception:  # pylint: disable=broad-exception-caught
-            pass
-        return items
-
-    @staticmethod
-    def _get_combo_items_from_nearby_listitems(
-        window_id: int,
-        _combo_rect,
-        combo_left: int,
-        combo_right: int,
-        combo_top: int,
-        combo_bottom: int
-    ) -> list[str]:
-        """Find ListItem controls near the combobox position (for expanded dropdown lists).
-
-        Args:
-            window_id: Parent window handle
-            _combo_rect: ComboBox rectangle (unused)
-            combo_left: Left edge of combobox
-            combo_right: Right edge of combobox
-            combo_top: Top edge of combobox
-            combo_bottom: Bottom edge of combobox
-
-        Returns:
-            List of item text strings found near the combobox
-        """
-        items: list[str] = []
-        try:
-            desktop = _get_uia_desktop()
-            window = desktop.window(handle=window_id)
-
-            all_list_items = window.children(control_type="ListItem")
-            if not all_list_items:
-                all_list_items = []
-                for child in window.iter_descendants():
-                    try:
-                        if child.element_info.control_type == "ListItem":
-                            all_list_items.append(child)
-                    except (AttributeError, TypeError):
-                        continue
-                    except Exception:  # pylint: disable=broad-exception-caught
-                        continue
-
-            for item in all_list_items:
-                try:
-                    item_rect = item.rectangle()
-                    x_near = abs(item_rect.left - combo_left) < 50 or abs(item_rect.left - combo_right) < 50
-                    vertical_near = abs(item_rect.bottom - combo_top) < 10 or abs(item_rect.top - combo_bottom) < 10
-                    if x_near and vertical_near:
-                        text = item.window_text()
-                        if text:
-                            items.append(text)
-                        else:
-                            name = getattr(item.element_info, "name", "")
-                            if name:
-                                items.append(name)
-                except (AttributeError, TypeError):
-                    continue
-                except Exception:  # pylint: disable=broad-exception-caught
-                    continue
-        except (AttributeError, TypeError):
-            pass
-        except Exception:  # pylint: disable=broad-exception-caught
-            pass
-        return items
-
-    @staticmethod
-    def _wait_for_dropdown_items(
-        wrapper,
-        timeout_ms: int = DEFAULT_COMBOBOX_DROPDOWN_TIMEOUT_MS,
-        poll_interval_ms: int = DEFAULT_COMBOBOX_POLL_INTERVAL_MS
-    ) -> list[str]:
-        """Wait for dropdown items to populate with polling.
-
-        Args:
-            wrapper: pywinauto wrapper for the combobox
-            timeout_ms: Maximum time to wait in milliseconds
-            poll_interval_ms: Time between polls in milliseconds
-
-        Returns:
-            List of item text strings (may be empty if timeout)
-        """
-        start_time = time.monotonic()
-        timeout_sec = timeout_ms / 1000.0
-        poll_interval_sec = poll_interval_ms / 1000.0
-
-        while (time.monotonic() - start_time) < timeout_sec:
-            items = UIADriver._get_combo_items_from_children(wrapper)
-            if items:
-                return items
-            time.sleep(poll_interval_sec)
-
-        return []
-
-    @staticmethod
     def combo_items(
         window_id: int,
         element_id: str,
@@ -402,83 +310,31 @@ class UIADriver:
     ) -> list[str]:
         """Get all item texts in a UIA combobox.
 
-        Strategy:
-        1. Try to expand and get ListItem children with polling
-        2. If no children, search for ListItem in window near ComboBox position
-        3. Fall back to pywinauto's texts() method
+        Uses pywinauto's texts() method which already handles:
+        - WinForms (Open button workaround)
+        - Qt5 (List child)
+        - Win32 fallback via win32_controls.ComboBoxWrapper when handle is available
 
         Args:
             window_id: Parent window handle
             element_id: Element identifier
-            dropdown_timeout_ms: Maximum time to wait for dropdown to populate (default 500ms)
+            dropdown_timeout_ms: Unused, kept for API compatibility
 
         Returns:
             List of item text strings
         """
         wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
 
-        combo_rect = None
-        combo_left = combo_right = combo_top = combo_bottom = 0
-        try:
-            combo_rect = wrapper.rectangle()
-            combo_left = combo_rect.left
-            combo_right = combo_rect.right
-            combo_top = combo_rect.top
-            combo_bottom = combo_rect.bottom
-        except (AttributeError, TypeError):
-            pass
-        except Exception:  # pylint: disable=broad-exception-caught
-            pass
-
-        was_expanded = False
-        try:
-            was_expanded = wrapper.is_expanded()
-        except (AttributeError, TypeError):
-            pass
-        except Exception:  # pylint: disable=broad-exception-caught
-            pass
-
-        if not was_expanded:
-            try:
-                wrapper.expand()
-            except (AttributeError, TypeError):
-                pass
-            except Exception:  # pylint: disable=broad-exception-caught
-                pass
-
-        try:
-            items = UIADriver._wait_for_dropdown_items(
-                wrapper,
-                timeout_ms=dropdown_timeout_ms
-            )
-
-            if not items:
-                items = UIADriver._get_combo_items_from_nearby_listitems(
-                    window_id, combo_rect,
-                    combo_left, combo_right, combo_top, combo_bottom
-                )
-
-            if items:
-                return items
-
+        from pywinauto.controls.uia_controls import ComboBoxWrapper as UIAComboBoxWrapper
+        if isinstance(wrapper, UIAComboBoxWrapper):
             try:
                 texts = wrapper.texts()
                 if texts:
                     return texts
-            except (AttributeError, TypeError):
-                pass
-            except Exception:  # pylint: disable=broad-exception-caught
-                pass
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                _logger.debug("texts() failed for UIA combobox: %s", e)
 
-            return items
-        finally:
-            if not was_expanded:
-                try:
-                    wrapper.collapse()
-                except (AttributeError, TypeError):
-                    pass
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
+        return []
 
     @staticmethod
     def combo_selected_text(window_id: int, element_id: str) -> Optional[str]:
@@ -490,6 +346,14 @@ class UIADriver:
 
         Returns:
             Selected item text or None if no selection
+
+        Note:
+            For ComboBoxWrapper, selected_text() already handles get_selection()
+            and falls back to iface_value.CurrentValue internally. The get_selection()
+            fallback is only useful for generic UIAWrapper instances that have
+            SelectionPattern but are not ComboBoxWrapper subclasses.
+            get_selection() returns UIAElementInfo objects, so .name accesses
+            the element's Name property directly.
         """
         wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
         try:
@@ -515,9 +379,9 @@ class UIADriver:
         """Get the selected item index in a UIA combobox.
 
         Strategy:
-        1. Get selected text
-        2. Get all items
-        3. Find index of selected text in items
+        1. Try Win32 API directly (most reliable for native ComboBox)
+        2. Try wrapper.selected_index() directly
+        3. Get selected text and search in items
 
         Args:
             window_id: Parent window handle
@@ -527,6 +391,20 @@ class UIADriver:
             Selected item index (0-based), or -1 if not found
         """
         wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+
+        combo_hwnd = None
+        try:
+            combo_hwnd = getattr(wrapper.element_info, "handle", None)
+        except (AttributeError, TypeError):
+            pass
+
+        if combo_hwnd:
+            try:
+                idx = win32gui.SendMessage(combo_hwnd, win32con.CB_GETCURSEL, 0, 0)
+                if idx >= 0:
+                    return idx
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                _logger.debug("Win32 API CB_GETCURSEL failed for combobox: %s", e)
 
         try:
             return wrapper.selected_index()
@@ -609,23 +487,39 @@ class UIADriver:
     def snapshot_uia_tree(window_id: int) -> str:
         """Generate a UIA element tree snapshot for the window.
 
-        Recursively traverses all UIA child elements of the target window,
+        Iteratively traverses all UIA child elements of the target window using a stack,
         formatting each element's name, control type, class name, automation ID, etc.
+        Uses a visited set to prevent infinite loops from buggy UIA providers.
+
+        Note:
+            Uses iter_children() which yields children one at a time via TreeWalker.
+            Children are prepended to the stack using deque.appendleft() (O(1)) to
+            maintain correct DFS visitation order without materializing the entire
+            children list.
         """
         desktop = _get_uia_desktop()
         wrapper = desktop.window(handle=window_id)
         lines: list[str] = []
 
-        def walk(element: Any, level: int) -> None:
+        visited: set[tuple[int, ...] | int] = set()
+        stack: deque[tuple[object, int]] = deque([(wrapper, 0)])
+        while stack:
+            element, level = stack.pop()
             info = element.element_info
+
+            rid = getattr(info, "runtime_id", None)
+            elem_key = tuple(rid) if rid else id(info)
+            if elem_key in visited:
+                continue
+            visited.add(elem_key)
+
             lines.append(ElementFormatter.format_uia(info, level))
             try:
-                for child in element.children():
-                    walk(child, level + 1)
+                for child in element.iter_children():
+                    stack.appendleft((child, level + 1))
             except Exception:  # pylint: disable=broad-exception-caught
                 pass
 
-        walk(wrapper, 0)
         return "\n".join(lines)
 
     @staticmethod
@@ -638,16 +532,19 @@ class UIADriver:
 
         Returns:
             Dictionary with element information or None if no element found
+
+        Note:
+            UIAElementInfo.from_point() always returns an instance (possibly wrapping
+            a null COM pointer). Accessing properties on a null element raises COMError,
+            which is caught and returns None.
         """
         try:
             element_info = UIAElementInfo.from_point(absolute_x, absolute_y)
-            if element_info is None:
-                return None
 
             name = (getattr(element_info, "name", "") or "").strip()
             control_type = (getattr(element_info, "control_type", "") or "").strip() or None
             class_name = (getattr(element_info, "class_name", "") or "").strip() or None
-            automation_id = (getattr(element_info, "automation_id", "") or "").strip() or None
+            automation_id = (getattr(element_info, "auto_id", None) or getattr(element_info, "automation_id", "") or "").strip() or None
             runtime_id = getattr(element_info, "runtime_id", None)
 
             result = {
@@ -657,7 +554,7 @@ class UIADriver:
                 "automation_id": automation_id,
             }
 
-            if runtime_id is not None:
+            if runtime_id:
                 result["runtime_id"] = "-".join(str(x) for x in runtime_id)
 
             return result

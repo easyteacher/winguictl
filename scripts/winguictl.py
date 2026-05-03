@@ -14,7 +14,7 @@ import logging
 import sys
 from typing import TYPE_CHECKING, Optional
 
-from models import ActionResult, ElementFormatter
+from models import ActionResult, Bounds, ElementFormatter
 from output_utils import (
     emit,
     emit_action,
@@ -98,6 +98,7 @@ def _build_find_parser(subparsers: argparse._SubParsersAction) -> None:
     find_text = sp.add_parser("text", help="Find visible text inside a window.")
     find_text.add_argument("text", help="Text to search for")
     find_text.add_argument("--exact", action="store_true")
+    find_text.add_argument("--max-results", type=int, default=50)
 
     find_uia = sp.add_parser("uia", help="Find UIA controls inside a window.")
     find_uia.add_argument("--text")
@@ -173,6 +174,8 @@ def _build_control_parser(subparsers: argparse._SubParsersAction) -> None:
     sp.add_parser("right-click", help="Right click the control.")
     sp.add_parser("check", help="Check a checkbox control.")
     sp.add_parser("uncheck", help="Uncheck a checkbox control.")
+    sp.add_parser("check-by-click", help="Check a checkbox by click (triggers event handlers).")
+    sp.add_parser("uncheck-by-click", help="Uncheck a checkbox by click (triggers event handlers).")
     sp.add_parser("is-checked", help="Get check state of a checkbox/button control.")
 
     type_keys = sp.add_parser("type-keys", help="Type keys to the control.")
@@ -206,6 +209,7 @@ def _build_control_parser(subparsers: argparse._SubParsersAction) -> None:
 
     combo_select = sp.add_parser("combo-select", help="Select an item in a combobox by index or text.")
     combo_select.add_argument("item", help="Item index (0-based) or text to select.")
+    combo_select.add_argument("--index", action="store_true", help="Treat item as a 0-based index instead of text.")
     sp.add_parser("combo-items", help="Get all items in a combobox.")
     sp.add_parser("combo-selected-index", help="Get selected index in a combobox.")
     sp.add_parser("combo-selected-text", help="Get selected text in a combobox.")
@@ -265,6 +269,7 @@ def _build_uia_control_parser(subparsers: argparse._SubParsersAction) -> None:
 
     combo_select = sp.add_parser("combo-select", help="Select item in combo box.")
     combo_select.add_argument("item", help="Item index or text.")
+    combo_select.add_argument("--index", action="store_true", help="Treat item as a 0-based index instead of text.")
     sp.add_parser("combo-items", help="Get combo box items.")
     sp.add_parser("combo-selected-text", help="Get selected text in combo box.")
     sp.add_parser("combo-selected-index", help="Get selected index in combo box.")
@@ -387,7 +392,7 @@ def _handle_find(args: argparse.Namespace) -> int:
         nonce = generate_nonce()
         match args.find_command:
             case "text":
-                content = FindDriver.find_text(args.window_id, args.text, exact=args.exact)
+                content = FindDriver.find_text(args.window_id, args.text, exact=args.exact, max_results=args.max_results)
                 print(wrap_with_boundary(content, nonce))
             case "uia":
                 content = FindDriver.find_uia(args.window_id, text=args.text, control_type=args.control_type, exact=args.exact, max_results=args.max_results)
@@ -566,6 +571,12 @@ def _handle_control(args: argparse.Namespace) -> int:
             case "uncheck":
                 Win32Driver.uncheck(hwnd)
                 emit_action(True, "uncheck", control_info)
+            case "check-by-click":
+                Win32Driver.check_by_click(hwnd)
+                emit_action(True, "check_by_click", control_info)
+            case "uncheck-by-click":
+                Win32Driver.uncheck_by_click(hwnd)
+                emit_action(True, "uncheck_by_click", control_info)
             case "is-checked":
                 checked = Win32Driver.is_checked(hwnd)
                 emit_action(True, "is_checked", {**control_info, "checked": checked})
@@ -579,8 +590,9 @@ def _handle_control(args: argparse.Namespace) -> int:
                 Win32Driver.send_keystrokes(hwnd, args.keystrokes)
                 emit_action(True, "send_keystrokes", {**control_info, "keystrokes": args.keystrokes})
             case "combo-select":
-                Win32Driver.combo_select(hwnd, args.item)
-                emit_action(True, "combo_select", {**control_info, "item": args.item})
+                item = int(args.item) if args.index else args.item
+                Win32Driver.combo_select(hwnd, item)
+                emit_action(True, "combo_select", {**control_info, "item": item})
             case "combo-items":
                 items = Win32Driver.combo_items(hwnd)
                 emit_action(True, "combo_items", {**control_info, "items": items})
@@ -678,8 +690,9 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
                 expanded = UIADriver.is_expanded(wid, eid)
                 emit_action(True, "is_expanded", {**uia_info, "expanded": expanded})
             case "combo-select":
-                UIADriver.combo_select(wid, eid, args.item)
-                emit_action(True, "combo_select", {**uia_info, "item": args.item})
+                item = int(args.item) if args.index else args.item
+                UIADriver.combo_select(wid, eid, item)
+                emit_action(True, "combo_select", {**uia_info, "item": item})
             case "combo-items":
                 items = UIADriver.combo_items(wid, eid)
                 emit_action(True, "combo_items", {**uia_info, "items": items})
@@ -734,24 +747,26 @@ def _handle_screenshot(args: argparse.Namespace) -> int:
     from win32_utils import Win32API
 
     rect = None
+    rect_bounds = None
     rect_args = [args.x, args.y, args.width, args.height]
     provided_count = sum(1 for v in rect_args if v is not None)
     if provided_count == 4:
         rect = (args.x, args.y, args.width, args.height)
+        rect_bounds = Bounds(x=args.x, y=args.y, width=args.width, height=args.height)
     elif provided_count > 0:
         emit_action(False, "screenshot", {"error": "crop requires all four parameters: --x, --y, --width, --height"})
         return 1
 
     try:
         if args.dry_run:
-            emit(ActionResult(ok=True, code="DRY_RUN", message="screenshot preview generated", data={"window_id": args.window_id, "output": args.output, "rect": rect}).to_dict())
+            emit(ActionResult(ok=True, code="DRY_RUN", message="screenshot preview generated", data={"window_id": args.window_id, "output": args.output, "rect": rect_bounds}).to_dict())
         else:
             Win32API.validate_window_id(args.window_id)
             output_path = WindowsDriver.screenshot_window(args.window_id, args.output, rect)
-            emit(ActionResult(ok=True, code="OK", message="screenshot executed", data={"window_id": args.window_id, "output": output_path}).to_dict())
+            emit(ActionResult(ok=True, code="OK", message="screenshot executed", data={"window_id": args.window_id, "output": output_path, "rect": rect_bounds}).to_dict())
         return 0
     except Exception as e:  # pylint: disable=broad-exception-caught
-        emit_action(False, "screenshot", {"window_id": str(args.window_id), "output": args.output, "rect": rect, "error": str(e)})
+        emit_action(False, "screenshot", {"window_id": str(args.window_id), "output": args.output, "rect": rect_bounds, "error": str(e)})
         return 1
 
 

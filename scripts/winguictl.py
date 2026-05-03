@@ -233,6 +233,7 @@ def _build_uia_control_parser(subparsers: argparse._SubParsersAction) -> None:
     p = subparsers.add_parser("uia-control", help="Control UIA elements by automation_id or runtime_id.")
     p.add_argument("--window-id", type=int, required=True, help="Parent window ID.")
     p.add_argument("--element-id", required=True, help="UIA element automation_id or runtime_id.")
+    p.add_argument("--dry-run", action="store_true", help="Preview mode, does not execute actual operation.")
     sp = p.add_subparsers(dest="uia_control_command", required=True)
 
     sp.add_parser("click", help="Click the element.")
@@ -708,6 +709,10 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
         Win32API.validate_window_id(args.window_id)
         uia_info = build_uia_control_info(wid, eid)
 
+        if args.dry_run:
+            emit_action(True, args.uia_control_command, {**uia_info, "dry_run": True})
+            return 0
+
         match args.uia_control_command:
             case "click":
                 UIADriver.click(wid, eid)
@@ -796,7 +801,7 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
                 emit_action(True, "slider_value", {**uia_info, "value": value})
             case "slider-set":
                 UIADriver.slider_set_value(wid, eid, args.value)
-                emit_action(True, "slider_set_value", {**uia_info, "value": args.value})
+                emit_action(True, "slider_set_value", {**uia_info, "value": value})
             case "slider-min":
                 value = UIADriver.slider_min(wid, eid)
                 emit_action(True, "slider_min", {**uia_info, "value": value})

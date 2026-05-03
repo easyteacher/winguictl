@@ -39,8 +39,7 @@ class Win32Driver:
 
         Matching strategy (by priority):
         1. Exact match (case-insensitive)
-        2. Prefix match (case-insensitive)
-        3. Contains match (case-insensitive)
+        2. Prefix match (case-insensitive, pattern must be at least 3 characters)
         """
         if not class_name:
             return None
@@ -48,10 +47,8 @@ class Win32Driver:
         for pattern, control_type in WIN32_CONTROL_TYPE_MAP.items():
             if pattern.lower() == class_lower:
                 return control_type
-            if class_lower.startswith(pattern.lower()):
-                return control_type
         for pattern, control_type in WIN32_CONTROL_TYPE_MAP.items():
-            if pattern.lower() in class_lower:
+            if len(pattern) >= 3 and class_lower.startswith(pattern.lower()):
                 return control_type
         return None
 
@@ -116,7 +113,7 @@ class Win32Driver:
         return ButtonWrapper(hwnd).is_checked()
 
     @staticmethod
-    def combo_select(hwnd: int, item) -> None:
+    def combo_select(hwnd: int, item: int | str) -> None:
         """Select an item in a combobox (by index or text)."""
         ComboBoxWrapper(hwnd).select(item)
 
@@ -136,7 +133,7 @@ class Win32Driver:
         return ComboBoxWrapper(hwnd).selected_text()
 
     @staticmethod
-    def listbox_select(hwnd: int, item) -> None:
+    def listbox_select(hwnd: int, item: int | str) -> None:
         """Select an item in a listbox (by index or text)."""
         ListBoxWrapper(hwnd).select(item)
 
@@ -146,7 +143,7 @@ class Win32Driver:
         return ListBoxWrapper(hwnd).item_texts()
 
     @staticmethod
-    def listbox_selected_indices(hwnd: int) -> tuple:
+    def listbox_selected_indices(hwnd: int) -> tuple[int, ...]:
         """Get the indices of all selected items in a listbox."""
         return ListBoxWrapper(hwnd).selected_indices()
 

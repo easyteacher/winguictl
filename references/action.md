@@ -40,7 +40,10 @@ Both `--dry-run` and actual execution output include the following information t
   - `class_name`: Window class name
   - `automation_id`: Automation ID (if available)
   - `runtime_id`: Runtime ID (if available)
-- **Note**: If UIA information is not available, this field will be `null`
+
+### Note
+
+If UIA information is not available, this field will be `null`
 
 ### Control Information (Win32 Information)
 - `control_info`: Win32 control information at the target coordinates, including:
@@ -50,7 +53,10 @@ Both `--dry-run` and actual execution output include the following information t
   - `control_type`: Inferred control type
   - `window_id`: Top-level window handle
   - `window_title`: Top-level window title
-- **Note**: This field may be `null` in rare cases when no Win32 control is found at the coordinates
+
+### Note
+
+This field may be `null` in rare cases when no Win32 control is found at the coordinates
 
 This information helps you verify:
 1. The correct window is being targeted

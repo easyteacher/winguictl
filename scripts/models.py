@@ -10,7 +10,60 @@ This module contains data types for window information, element information, and
 """
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from pywinauto.uia_element_info import UIAElementInfo
+
+
+@runtime_checkable
+class HasUIAAttributes(Protocol):
+    """Protocol for objects with UIA-like attributes (UIAElementInfo, wrappers, etc.)."""
+
+    @property
+    def name(self) -> str:
+        """Element name."""
+        ...
+
+    @property
+    def rich_text(self) -> str:
+        """Element rich text."""
+        ...
+
+    @property
+    def control_type(self) -> str:
+        """Element control type."""
+        ...
+
+    @property
+    def class_name(self) -> str:
+        """Element class name."""
+        ...
+
+    @property
+    def automation_id(self) -> str:
+        """Element automation ID."""
+        ...
+
+    @property
+    def control_id(self) -> Optional[int]:
+        """Element control ID."""
+        ...
+
+    @property
+    def runtime_id(self) -> Optional[tuple[int, ...]]:
+        """Element runtime ID."""
+        ...
+
+    @property
+    def rectangle(self) -> Any:
+        """Element bounding rectangle."""
+        ...
+
+    @property
+    def enabled(self) -> bool:
+        """Element enabled state."""
+        ...
 
 
 @dataclass
@@ -23,8 +76,16 @@ class Bounds:
     height: int
 
     @classmethod
-    def from_rect(cls, rect) -> "Bounds":
-        """Create Bounds from a rect object with left, top, right, bottom attributes."""
+    def from_rect(cls, rect: Any) -> "Bounds":
+        """Create Bounds from a rect object with left, top, right, bottom attributes.
+
+        Args:
+            rect: Rectangle object with left, top, right, bottom properties
+                  (e.g., pywinauto rectangle or similar)
+
+        Returns:
+            Bounds instance with computed width and height
+        """
         return cls(
             x=int(rect.left),
             y=int(rect.top),
@@ -33,6 +94,7 @@ class Bounds:
         )
 
     def to_dict(self) -> dict[str, int]:
+        """Convert bounds to dictionary format."""
         return {
             "x": int(self.x),
             "y": int(self.y),
@@ -58,6 +120,7 @@ class WindowInfo:
     parent_hwnd: Optional[int] = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert window info to dictionary format."""
         return {
             "window_id": self.window_id,
             "title": self.title,
@@ -89,6 +152,7 @@ class ElementInfo:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert element info to dictionary format."""
         return {
             "element_id": self.element_id,
             "window_id": self.window_id,
@@ -117,6 +181,7 @@ class ActionResult:
     retry_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert action result to dictionary format."""
         return asdict(self)
 
 
@@ -136,6 +201,7 @@ class ElementFormatter:
     extra: Optional[dict[str, Any]] = None
 
     def format(self, indent: int = 0) -> str:
+        """Format element information as a human-readable string."""
         prefix = "  " * indent
         parts = []
 
@@ -173,7 +239,16 @@ class ElementFormatter:
         return f'{prefix}- "{self.text}" [{details}]'
 
     @staticmethod
-    def format_uia(info: Any, level: int = 0) -> str:
+    def format_uia(info: "HasUIAAttributes", level: int = 0) -> str:
+        """Format UIA element info as a human-readable string.
+
+        Args:
+            info: UIA element info object (UIAElementInfo or wrapper with UIA attributes)
+            level: Indentation level for nested elements
+
+        Returns:
+            Formatted string representation of the element
+        """
         name = (getattr(info, "name", "") or "").strip()
         if not name:
             name = (getattr(info, "rich_text", "") or "").strip()
@@ -183,12 +258,12 @@ class ElementFormatter:
         control_id = getattr(info, "control_id", None)
         runtime_id = getattr(info, "runtime_id", None)
         rect = getattr(info, "rectangle", None)
-        rect_tuple = None
+        rect_tuple: Optional[tuple[int, int, int, int]] = None
         if rect is not None:
             rect_tuple = (int(rect.left), int(rect.top), int(rect.right - rect.left), int(rect.bottom - rect.top))
         enabled = getattr(info, "enabled", None)
 
-        extra = {}
+        extra: dict[str, str] = {}
         if control_id is not None:
             extra["control_id"] = str(control_id)
         if runtime_id is not None:
@@ -216,6 +291,7 @@ class ElementFormatter:
         level: int = 0,
         control_type: Optional[str] = None,
     ) -> str:
+        """Format HWND element info as a human-readable string."""
         extra = {}
         if control_id is not None:
             extra["control_id"] = str(control_id)
@@ -239,6 +315,7 @@ class ElementFormatter:
         height: int,
         confidence: Optional[float] = None,
     ) -> str:
+        """Format OCR result as a human-readable string."""
         formatter = ElementFormatter(
             text=text,
             rect=(left, top, width, height),
@@ -248,6 +325,7 @@ class ElementFormatter:
 
     @staticmethod
     def format_element(element_info: "ElementInfo", indent: int = 0) -> str:
+        """Format ElementInfo object as a human-readable string."""
         rect_tuple = None
         if element_info.bounds:
             rect_tuple = (

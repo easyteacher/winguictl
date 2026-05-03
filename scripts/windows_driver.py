@@ -30,24 +30,34 @@ _logger = logging.getLogger(__name__)
 
 IMMUNE_CLASS_NAMES = frozenset({"IME", "Default IME", "MSCTFIME UI"})
 
+_win32_desktop: Optional[Desktop] = None
+
+
+def _get_win32_desktop() -> Desktop:
+    """Get or create a cached Win32 Desktop instance."""
+    global _win32_desktop
+    if _win32_desktop is None:
+        _win32_desktop = Desktop(backend="win32")
+    return _win32_desktop
+
 
 class WindowsDriver:
+    """Driver class for window management operations."""
 
     @staticmethod
-    def _wrap(window_id: str) -> HwndWrapper:
-        """Wrap a window handle string as an HwndWrapper instance."""
-        hwnd = int(window_id)
-        return HwndWrapper(HwndElementInfo(hwnd))
+    def _wrap(window_id: int) -> HwndWrapper:
+        """Wrap a window handle as an HwndWrapper instance."""
+        return HwndWrapper(HwndElementInfo(window_id))
 
     @staticmethod
-    def _window_action(window_id: str, action_name: str, **kwargs) -> bool:
+    def _window_action(window_id: int, action_name: str, **kwargs) -> bool:
         """Generic method for executing window operations.
 
         Centralizes the pattern of _wrap + calling wrapper method + exception handling,
         avoiding duplicate try/except boilerplate in each window operation method.
 
         Args:
-            window_id: Window handle string
+            window_id: Window handle
             action_name: Method name on HwndWrapper
             **kwargs: Parameters to pass to the method
 
@@ -86,7 +96,7 @@ class WindowsDriver:
         """
         windows: list[WindowInfo] = []
         foreground_hwnd = win32gui.GetForegroundWindow()
-        desktop = Desktop(backend="win32")
+        desktop = _get_win32_desktop()
 
         for z_order, w in enumerate(desktop.windows()):
             try:
@@ -127,37 +137,37 @@ class WindowsDriver:
         return windows
 
     @staticmethod
-    def focus_window(window_id: str) -> bool:
+    def focus_window(window_id: int) -> bool:
         """Bring window to foreground and give it focus."""
         return WindowsDriver._window_action(window_id, "set_focus")
 
     @staticmethod
-    def minimize_window(window_id: str) -> bool:
+    def minimize_window(window_id: int) -> bool:
         """Minimize the window."""
         return WindowsDriver._window_action(window_id, "minimize")
 
     @staticmethod
-    def maximize_window(window_id: str) -> bool:
+    def maximize_window(window_id: int) -> bool:
         """Maximize the window."""
         return WindowsDriver._window_action(window_id, "maximize")
 
     @staticmethod
-    def restore_window(window_id: str) -> bool:
+    def restore_window(window_id: int) -> bool:
         """Restore the window from minimized/maximized state."""
         return WindowsDriver._window_action(window_id, "restore")
 
     @staticmethod
-    def close_window(window_id: str) -> bool:
+    def close_window(window_id: int) -> bool:
         """Close the window."""
         return WindowsDriver._window_action(window_id, "close")
 
     @staticmethod
-    def move_window(window_id: str, x: int, y: int) -> bool:
+    def move_window(window_id: int, x: int, y: int) -> bool:
         """Move the window to the specified coordinates."""
         return WindowsDriver._window_action(window_id, "move_window", x=x, y=y)
 
     @staticmethod
-    def resize_window(window_id: str, width: int, height: int) -> bool:
+    def resize_window(window_id: int, width: int, height: int) -> bool:
         """Resize the window while preserving its current position.
 
         Note: pywinauto's move_window requires both position and size together,
@@ -172,11 +182,11 @@ class WindowsDriver:
             return False
 
     @staticmethod
-    def screenshot_window(window_id: str, output: str, rect: Optional[Tuple[int, int, int, int]] = None) -> str:
+    def screenshot_window(window_id: int, output: str, rect: Optional[tuple[int, int, int, int]] = None) -> str:
         """Capture window screenshot and save to file.
 
         Args:
-            window_id: Window handle string
+            window_id: Window handle
             output: Output file path (supports .png and .bmp)
             rect: Optional crop region (x, y, width, height), relative to window top-left
 
@@ -186,9 +196,8 @@ class WindowsDriver:
         Raises:
             ValueError: If crop region is outside window bounds
         """
-        hwnd = int(window_id)
         output_path = Path(output)
-        win_x, win_y, win_width, win_height, data = Win32API.capture_window_bgra(hwnd)
+        win_x, win_y, win_width, win_height, data = Win32API.capture_window_bgra(window_id)
         if rect:
             x, y, width, height = rect
             if x < 0 or y < 0 or width <= 0 or height <= 0:
@@ -204,8 +213,6 @@ class WindowsDriver:
             win_height = height
             win_x += x
             win_y += y
-        if output_path.suffix.lower() == ".png":
-            Win32API.write_png(output_path, win_width, win_height, data)
-        else:
-            Win32API.write_bmp(output_path, win_width, win_height, data)
+        fmt = "PNG" if output_path.suffix.lower() == ".png" else "BMP"
+        Win32API.write_image(output_path, win_width, win_height, data, fmt)
         return str(output_path.absolute())

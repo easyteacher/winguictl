@@ -5,11 +5,60 @@
 
 """Win32 API constant definitions.
 
-Contains virtual key code mappings and Win32 control type mappings.
+Contains virtual key code mappings, Win32 control type mappings, and other constants.
 Input simulation and screenshot functionality has been migrated to use pywin32
 (win32api/win32gui/win32con), making ctypes structures and low-level constants
 no longer necessary.
 """
+
+from typing import Any, Optional
+
+# ── Optional Dependency Detection ────────────────────────────────────
+# Centralized detection for optional dependencies with helpful error messages
+
+try:
+    import cv2
+    import numpy as np
+    _OPENCV_AVAILABLE = True
+except ImportError:
+    _OPENCV_AVAILABLE = False
+    cv2 = None  # type: ignore[misc,assignment]
+    np = None  # type: ignore[misc,assignment]
+
+try:
+    import wx_ocr
+    _WX_OCR_AVAILABLE = True
+except ImportError:
+    _WX_OCR_AVAILABLE = False
+    wx_ocr = None  # type: ignore[misc,assignment]
+
+
+def check_opencv_available() -> None:
+    """Raise RuntimeError if opencv-python is not installed."""
+    if not _OPENCV_AVAILABLE:
+        raise RuntimeError("opencv-python is required for image matching. Install with: pip install opencv-python")
+
+
+def check_wx_ocr_available() -> None:
+    """Raise RuntimeError if wx-ocr is not installed."""
+    if not _WX_OCR_AVAILABLE:
+        raise RuntimeError("wx-ocr is required for OCR. Install with: pip install wx-ocr")
+
+
+# ── SendInput Constants ──────────────────────────────────────────────
+# Absolute coordinate range for SendInput mouse operations (0-65535)
+SENDINPUT_ABSOLUTE_MAX = 65535
+
+# Default delays for input simulation (milliseconds)
+DEFAULT_CLICK_DELAY_MS = 50
+DEFAULT_KEY_DELAY_MS = 50
+DEFAULT_DRAG_START_DELAY_MS = 50
+DEFAULT_HOTKEY_DELAY_MS = 50
+
+# ── UIA Driver Timeouts ──────────────────────────────────────────────
+DEFAULT_UIA_WAIT_TIMEOUT_SEC = 3
+DEFAULT_COMBOBOX_DROPDOWN_TIMEOUT_MS = 500
+DEFAULT_COMBOBOX_POLL_INTERVAL_MS = 50
 
 # ── Virtual Key Code Mapping ─────────────────────────────────────────
 # Key name (lowercase) → Win32 virtual key code, used for send_press_key / send_hotkey
@@ -44,6 +93,8 @@ VK_CODE_MAP = {
     "cmd": 0x5B,
 }
 
+# F1-F12: VK_F1=0x70 (112) through VK_F12=0x7B (123)
+# Formula: 0x6F + index gives 0x70 for F1, 0x7B for F12
 for _index in range(1, 13):
     VK_CODE_MAP[f"f{_index}"] = 0x6F + _index
 for _char in "abcdefghijklmnopqrstuvwxyz":

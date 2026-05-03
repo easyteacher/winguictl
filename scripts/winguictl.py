@@ -63,7 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
 def _build_window_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the window subcommand parser."""
     p = subparsers.add_parser("window", help="Inspect and control desktop windows.")
-    p.add_argument("--window-id", required=False)
+    p.add_argument("--window-id", type=int, help="Window handle (required for all subcommands except 'list')")
     sp = p.add_subparsers(dest="window_command", required=True)
     sp.add_parser("list", help="List visible windows.")
     sp.add_parser("focus", help="Focus a window (bring to foreground).")
@@ -82,7 +82,7 @@ def _build_window_parser(subparsers: argparse._SubParsersAction) -> None:
 def _build_snapshot_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the snapshot subcommand parser."""
     p = subparsers.add_parser("snapshot", help="Capture window structure snapshots.")
-    p.add_argument("--window-id", required=True)
+    p.add_argument("--window-id", type=int, required=True)
     sp = p.add_subparsers(dest="snapshot_command", required=True)
     sp.add_parser("hwnd", help="Snapshot HWND tree of a window.")
     sp.add_parser("uia", help="Snapshot UIA tree of a window.")
@@ -92,7 +92,7 @@ def _build_snapshot_parser(subparsers: argparse._SubParsersAction) -> None:
 def _build_find_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the find subcommand parser."""
     p = subparsers.add_parser("find", help="Resolve text or control targets inside a window.")
-    p.add_argument("--window-id", required=True)
+    p.add_argument("--window-id", type=int, required=True)
     sp = p.add_subparsers(dest="find_command", required=True)
 
     find_text = sp.add_parser("text", help="Find visible text inside a window.")
@@ -112,14 +112,16 @@ def _build_find_parser(subparsers: argparse._SubParsersAction) -> None:
 
     find_image = sp.add_parser("image", help="Find an image template inside a window.")
     find_image.add_argument("--image-path", required=True)
-    find_image.add_argument("--threshold", type=float, default=0.9)
+    find_image.add_argument("--threshold", type=float, default=0.9, help="Match confidence threshold (0-1)")
     find_image.add_argument("--max-results", type=int, default=5)
+    find_image.add_argument("--overlap-threshold", type=float, default=0.5,
+                            help="IoU threshold for non-maximum suppression (0-1). Higher values allow more overlapping matches.")
 
 
 def _build_action_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the action subcommand parser."""
     p = subparsers.add_parser("action", help="Preview or run actions against a window.")
-    p.add_argument("--window-id", required=True)
+    p.add_argument("--window-id", type=int, required=True)
     sp = p.add_subparsers(dest="action_command", required=True)
 
     click = sp.add_parser("click", help="Click at coordinates.")
@@ -159,7 +161,7 @@ def _build_action_parser(subparsers: argparse._SubParsersAction) -> None:
 def _build_control_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the control subcommand parser (Win32 control operations)."""
     p = subparsers.add_parser("control", help="Directly control a specific control by hwnd.")
-    p.add_argument("--hwnd", required=True, help="Control handle (hwnd).")
+    p.add_argument("--hwnd", type=int, required=True, help="Control handle (hwnd).")
     sp = p.add_subparsers(dest="control_command", required=True)
 
     set_text = sp.add_parser("set-text", help="Set text content of an edit control.")
@@ -174,13 +176,33 @@ def _build_control_parser(subparsers: argparse._SubParsersAction) -> None:
     sp.add_parser("is-checked", help="Get check state of a checkbox/button control.")
 
     type_keys = sp.add_parser("type-keys", help="Type keys to the control.")
-    type_keys.add_argument("keys", help="Keys to type (pywinauto format).")
+    type_keys.add_argument(
+        "keys",
+        help=(
+            "Keys to type (pywinauto format). "
+            "Special keys: {ENTER}, {TAB}, {ESC}, {SPACE}, {BACK}, {DELETE}, {UP}, {DOWN}, {LEFT}, {RIGHT}, "
+            "{HOME}, {END}, {PGUP}, {PGDN}, {F1}-{F12}. "
+            "Modifiers: {CTRL}, {SHIFT}, {ALT}, {LCTRL}, {RCTRL}, etc. "
+            "Combine: {CTRL}c{CTRL} for Ctrl+C, {CTRL}{SHIFT}s{SHIFT}{CTRL} for Ctrl+Shift+S. "
+            "Repeat: {ENTER 3} for 3 Enter presses."
+        ),
+    )
 
     send_chars = sp.add_parser("send-chars", help="Send characters to inactive window.")
     send_chars.add_argument("chars", help="Characters to send.")
 
     send_keystrokes = sp.add_parser("send-keystrokes", help="Send keystrokes to inactive window.")
-    send_keystrokes.add_argument("keystrokes", help="Keystrokes to send (pywinauto format).")
+    send_keystrokes.add_argument(
+        "keystrokes",
+        help=(
+            "Keystrokes to send (pywinauto format). "
+            "Special keys: {ENTER}, {TAB}, {ESC}, {SPACE}, {BACK}, {DELETE}, {UP}, {DOWN}, {LEFT}, {RIGHT}, "
+            "{HOME}, {END}, {PGUP}, {PGDN}, {F1}-{F12}. "
+            "Modifiers: {CTRL}, {SHIFT}, {ALT}, {LCTRL}, {RCTRL}, etc. "
+            "Combine: {CTRL}c{CTRL} for Ctrl+C, {CTRL}{SHIFT}s{SHIFT}{CTRL} for Ctrl+Shift+S. "
+            "Repeat: {ENTER 3} for 3 Enter presses."
+        ),
+    )
 
     combo_select = sp.add_parser("combo-select", help="Select an item in a combobox by index or text.")
     combo_select.add_argument("item", help="Item index (0-based) or text to select.")
@@ -197,7 +219,7 @@ def _build_control_parser(subparsers: argparse._SubParsersAction) -> None:
 def _build_uia_control_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the uia-control subcommand parser (UIA element operations)."""
     p = subparsers.add_parser("uia-control", help="Control UIA elements by automation_id or runtime_id.")
-    p.add_argument("--window-id", required=True, help="Parent window ID.")
+    p.add_argument("--window-id", type=int, required=True, help="Parent window ID.")
     p.add_argument("--element-id", required=True, help="UIA element automation_id or runtime_id.")
     sp = p.add_subparsers(dest="uia_control_command", required=True)
 
@@ -214,7 +236,17 @@ def _build_uia_control_parser(subparsers: argparse._SubParsersAction) -> None:
     sp.add_parser("set-focus", help="Set focus to the element.")
 
     type_keys = sp.add_parser("type-keys", help="Type keys to the element.")
-    type_keys.add_argument("keys", help="Keys to type (pywinauto format).")
+    type_keys.add_argument(
+        "keys",
+        help=(
+            "Keys to type (pywinauto format). "
+            "Special keys: {ENTER}, {TAB}, {ESC}, {SPACE}, {BACK}, {DELETE}, {UP}, {DOWN}, {LEFT}, {RIGHT}, "
+            "{HOME}, {END}, {PGUP}, {PGDN}, {F1}-{F12}. "
+            "Modifiers: {CTRL}, {SHIFT}, {ALT}, {LCTRL}, {RCTRL}, etc. "
+            "Combine: {CTRL}c{CTRL} for Ctrl+C, {CTRL}{SHIFT}s{SHIFT}{CTRL} for Ctrl+Shift+S. "
+            "Repeat: {ENTER 3} for 3 Enter presses."
+        ),
+    )
 
     scroll = sp.add_parser("scroll", help="Scroll the element.")
     scroll.add_argument("direction", choices=["up", "down", "left", "right"], help="Scroll direction.")
@@ -257,7 +289,7 @@ def _build_uia_control_parser(subparsers: argparse._SubParsersAction) -> None:
 def _build_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the screenshot subcommand parser."""
     p = subparsers.add_parser("screenshot", help="Take a screenshot of a window.")
-    p.add_argument("--window-id", required=True)
+    p.add_argument("--window-id", type=int, required=True)
     p.add_argument("--output", required=True)
     p.add_argument("--x", type=int, help="Left offset relative to window (optional)")
     p.add_argument("--y", type=int, help="Top offset relative to window (optional)")
@@ -269,30 +301,48 @@ def _build_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
 def _handle_window(args: argparse.Namespace) -> int:
     """Handle window subcommands."""
     from output_utils import format_window_tree
+    from win32_utils import Win32API
     from windows_driver import WindowsDriver
 
     if args.window_command == "list":
-        windows = WindowsDriver.list_windows()
-        content = format_window_tree(windows)
-        nonce = generate_nonce()
-        print(wrap_with_boundary(content, nonce))
-        return 0
+        try:
+            windows = WindowsDriver.list_windows()
+            content = format_window_tree(windows)
+            nonce = generate_nonce()
+            print(wrap_with_boundary(content, nonce))
+            return 0
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            emit_action(False, "list", {"error": str(e)})
+            return 1
 
-    action_map = {
-        "focus": lambda: WindowsDriver.focus_window(args.window_id),
-        "minimize": lambda: WindowsDriver.minimize_window(args.window_id),
-        "maximize": lambda: WindowsDriver.maximize_window(args.window_id),
-        "restore": lambda: WindowsDriver.restore_window(args.window_id),
-        "close": lambda: WindowsDriver.close_window(args.window_id),
-        "move": lambda: WindowsDriver.move_window(args.window_id, args.x, args.y),
-        "resize": lambda: WindowsDriver.resize_window(args.window_id, args.width, args.height),
-    }
-    handler = action_map.get(args.window_command)
-    if handler is None:
-        return -1
-    success = handler()
-    emit_action(success, args.window_command)
-    return 0
+    if args.window_id is None:
+        emit_action(False, args.window_command, {"error": "--window-id is required for this subcommand"})
+        return 1
+
+    try:
+        Win32API.validate_window_id(args.window_id)
+        window_title = Win32API.get_window_text(args.window_id)
+        window_info = {"window_id": str(args.window_id), "window_title": window_title}
+
+        action_map = {
+            "focus": lambda: WindowsDriver.focus_window(args.window_id),
+            "minimize": lambda: WindowsDriver.minimize_window(args.window_id),
+            "maximize": lambda: WindowsDriver.maximize_window(args.window_id),
+            "restore": lambda: WindowsDriver.restore_window(args.window_id),
+            "close": lambda: WindowsDriver.close_window(args.window_id),
+            "move": lambda: WindowsDriver.move_window(args.window_id, args.x, args.y),
+            "resize": lambda: WindowsDriver.resize_window(args.window_id, args.width, args.height),
+        }
+        handler = action_map.get(args.window_command)
+        if handler is None:
+            emit_action(False, args.window_command, {"window_id": str(args.window_id), "error": f"unknown window subcommand: {args.window_command}"})
+            return 1
+        success = handler()
+        emit_action(success, args.window_command, window_info)
+        return 0 if success else 1
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        emit_action(False, args.window_command, {"window_id": str(args.window_id) if args.window_id else None, "error": str(e)})
+        return 1
 
 
 def _handle_snapshot(args: argparse.Namespace) -> int:
@@ -300,50 +350,72 @@ def _handle_snapshot(args: argparse.Namespace) -> int:
     from ocr_driver import OCRDriver
     from uia_driver import UIADriver
     from win32_driver import Win32Driver
+    from win32_utils import Win32API
 
-    nonce = generate_nonce()
-    match args.snapshot_command:
-        case "hwnd":
-            content = Win32Driver.snapshot_hwnd_tree(args.window_id)
-            print(wrap_with_boundary(content, nonce))
-        case "uia":
-            content = UIADriver.snapshot_uia_tree(args.window_id)
-            print(wrap_with_boundary(content, nonce))
-        case "ocr":
-            content = OCRDriver.snapshot_ocr(args.window_id)
-            print(wrap_with_boundary(content, nonce))
-        case _:
-            return -1
-    return 0
+    try:
+        Win32API.validate_window_id(args.window_id)
+
+        nonce = generate_nonce()
+        match args.snapshot_command:
+            case "hwnd":
+                content = Win32Driver.snapshot_hwnd_tree(args.window_id)
+                print(wrap_with_boundary(content, nonce))
+            case "uia":
+                content = UIADriver.snapshot_uia_tree(args.window_id)
+                print(wrap_with_boundary(content, nonce))
+            case "ocr":
+                content = OCRDriver.snapshot_ocr(args.window_id)
+                print(wrap_with_boundary(content, nonce))
+            case _:
+                emit_action(False, f"snapshot_{args.snapshot_command}", {"window_id": str(args.window_id), "error": f"unknown snapshot subcommand: {args.snapshot_command}"})
+                return 1
+        return 0
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        emit_action(False, f"snapshot_{args.snapshot_command}", {"window_id": str(args.window_id), "error": str(e)})
+        return 1
 
 
 def _handle_find(args: argparse.Namespace) -> int:
     """Handle find subcommands."""
     from find_driver import FindDriver
     from ocr_driver import OCRDriver
+    from win32_utils import Win32API
 
-    nonce = generate_nonce()
-    match args.find_command:
-        case "text":
-            content = FindDriver.find_text(args.window_id, args.text, exact=args.exact)
-            print(wrap_with_boundary(content, nonce))
-        case "uia":
-            content = FindDriver.find_uia(args.window_id, text=args.text, control_type=args.control_type, exact=args.exact, max_results=args.max_results)
-            print(wrap_with_boundary(content, nonce))
-        case "ocr":
-            result = OCRDriver.find_ocr_text(args.window_id, args.text, exact=args.exact, confidence_threshold=args.confidence_threshold)
-            content = "\n".join(ElementFormatter.format_element(m) for m in result)
-            print(wrap_with_boundary(content, nonce))
-        case "image":
-            result = FindDriver.find_image(window_id=args.window_id, image_path=args.image_path, threshold=args.threshold, max_results=args.max_results)
-            content = "\n".join(ElementFormatter.format_element(m) for m in result) if result else ""
-            print(wrap_with_boundary(content, nonce))
-        case _:
-            return -1
-    return 0
+    try:
+        Win32API.validate_window_id(args.window_id)
+
+        nonce = generate_nonce()
+        match args.find_command:
+            case "text":
+                content = FindDriver.find_text(args.window_id, args.text, exact=args.exact)
+                print(wrap_with_boundary(content, nonce))
+            case "uia":
+                content = FindDriver.find_uia(args.window_id, text=args.text, control_type=args.control_type, exact=args.exact, max_results=args.max_results)
+                print(wrap_with_boundary(content, nonce))
+            case "ocr":
+                result = OCRDriver.find_ocr_text(args.window_id, args.text, exact=args.exact, confidence_threshold=args.confidence_threshold)
+                content = "\n".join(ElementFormatter.format_element(m) for m in result)
+                print(wrap_with_boundary(content, nonce))
+            case "image":
+                result = FindDriver.find_image(
+                    window_id=args.window_id,
+                    image_path=args.image_path,
+                    threshold=args.threshold,
+                    max_results=args.max_results,
+                    overlap_threshold=args.overlap_threshold
+                )
+                content = "\n".join(ElementFormatter.format_element(m) for m in result) if result else ""
+                print(wrap_with_boundary(content, nonce))
+            case _:
+                emit_action(False, f"find_{args.find_command}", {"window_id": str(args.window_id), "error": f"unknown find subcommand: {args.find_command}"})
+                return 1
+        return 0
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        emit_action(False, f"find_{args.find_command}", {"window_id": str(args.window_id), "error": str(e)})
+        return 1
 
 
-def _handle_action(args: argparse.Namespace) -> int:
+def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many-statements
     """Handle action subcommands."""
     from find_driver import FindDriver
     from output_utils import (
@@ -355,106 +427,120 @@ def _handle_action(args: argparse.Namespace) -> int:
     from win32_utils import Win32API
     from windows_driver import WindowsDriver
 
-    match args.action_command:
-        case "click":
-            window_title, bounds = resolve_window_context(args.window_id)
-            validate_relative_coords(args.x, args.y, bounds)
-            absolute_x = bounds.x + args.x
-            absolute_y = bounds.y + args.y
-            point_ctx = build_point_context(absolute_x, absolute_y)
-            data = {"window_id": args.window_id, "window_title": window_title, "relative": {"x": args.x, "y": args.y}, **point_ctx}
-            if not args.dry_run:
-                WindowsDriver.focus_window(args.window_id)
-                Win32API.send_click(absolute_x, absolute_y)
-            emit_action_result("click", args.dry_run, data)
-        case "click-image":
-            matches = FindDriver.find_image(window_id=args.window_id, image_path=args.image_path, threshold=args.threshold)
-            if not matches:
-                raise ValueError(f"image target not found: {args.image_path}")
-            target = matches[0]
-            payload = build_center_payload(target)
-            window_title = Win32API.get_window_text(int(target.window_id))
-            window_bounds = Win32API.get_window_bounds(int(target.window_id))
-            if window_bounds:
-                absolute_x = window_bounds.x + payload["relative"]["x"]
-                absolute_y = window_bounds.y + payload["relative"]["y"]
-            else:
-                absolute_x = payload["relative"]["x"]
-                absolute_y = payload["relative"]["y"]
-            point_ctx = build_point_context(absolute_x, absolute_y)
-            payload["window_title"] = window_title
-            payload.update(point_ctx)
-            if not args.dry_run:
-                WindowsDriver.focus_window(target.window_id)
-                Win32API.send_click(absolute_x, absolute_y)
-            emit_action_result("click_image", args.dry_run, payload)
-        case "drag":
-            window_title, bounds = resolve_window_context(args.window_id)
-            validate_relative_coords(args.x1, args.y1, bounds)
-            validate_relative_coords(args.x2, args.y2, bounds)
-            absolute_x1 = bounds.x + args.x1
-            absolute_y1 = bounds.y + args.y1
-            absolute_x2 = bounds.x + args.x2
-            absolute_y2 = bounds.y + args.y2
-            from_ctx = build_point_context(absolute_x1, absolute_y1)
-            to_ctx = build_point_context(absolute_x2, absolute_y2)
-            data = {
-                "window_id": args.window_id, "window_title": window_title,
-                "from": {"relative": {"x": args.x1, "y": args.y1}, **from_ctx},
-                "to": {"relative": {"x": args.x2, "y": args.y2}, **to_ctx},
-                "duration_ms": args.duration_ms,
-            }
-            if not args.dry_run:
-                WindowsDriver.focus_window(args.window_id)
-                Win32API.send_drag(absolute_x1, absolute_y1, absolute_x2, absolute_y2, duration_ms=args.duration_ms)
-            emit_action_result("drag", args.dry_run, data)
-        case "type":
-            window_title = Win32API.get_window_text(int(args.window_id))
-            data = {"window_id": args.window_id, "window_title": window_title, "text": args.text, "length": len(args.text)}
-            if not args.dry_run:
-                WindowsDriver.focus_window(args.window_id)
-                Win32API.move_mouse_to_window_center(int(args.window_id))
-                Win32API.send_type_text(args.text)
-            emit_action_result("type_text", args.dry_run, data)
-        case "press-key":
-            window_title = Win32API.get_window_text(int(args.window_id))
-            data = {"window_id": args.window_id, "window_title": window_title, "key": args.key}
-            if not args.dry_run:
-                WindowsDriver.focus_window(args.window_id)
-                Win32API.move_mouse_to_window_center(int(args.window_id))
-                Win32API.send_press_key(args.key)
-            emit_action_result("press_key", args.dry_run, data)
-        case "hotkey":
-            window_title = Win32API.get_window_text(int(args.window_id))
-            data = {"window_id": args.window_id, "window_title": window_title, "keys": args.keys}
-            if not args.dry_run:
-                WindowsDriver.focus_window(args.window_id)
-                Win32API.move_mouse_to_window_center(int(args.window_id))
-                Win32API.send_hotkey(args.keys)
-            emit_action_result("hotkey", args.dry_run, data)
-        case "clear-text":
-            window_title = Win32API.get_window_text(int(args.window_id))
-            data = {"window_id": args.window_id, "window_title": window_title}
-            if not args.dry_run:
-                WindowsDriver.focus_window(args.window_id)
-                Win32API.move_mouse_to_window_center(int(args.window_id))
-                Win32API.send_hotkey(["ctrl", "a"])
-                Win32API.send_press_key("delete")
-            emit_action_result("clear_text", args.dry_run, data)
-        case _:
-            return -1
-    return 0
+    try:
+        Win32API.validate_window_id(args.window_id)
+        window_title = Win32API.get_window_text(args.window_id)
+
+        match args.action_command:
+            case "click":
+                window_title, bounds = resolve_window_context(args.window_id)
+                validate_relative_coords(args.x, args.y, bounds)
+                absolute_x = bounds.x + args.x
+                absolute_y = bounds.y + args.y
+                point_ctx = build_point_context(absolute_x, absolute_y)
+                data = {"window_id": str(args.window_id), "window_title": window_title, "relative": {"x": args.x, "y": args.y}, **point_ctx}
+                if not args.dry_run:
+                    WindowsDriver.focus_window(args.window_id)
+                    Win32API.send_click(absolute_x, absolute_y)
+                emit_action_result("click", args.dry_run, data)
+            case "click-image":
+                matches = FindDriver.find_image(window_id=args.window_id, image_path=args.image_path, threshold=args.threshold)
+                if not matches:
+                    raise ValueError(f"image target not found: {args.image_path}")
+                target = matches[0]
+                payload = build_center_payload(target)
+                window_title = Win32API.get_window_text(int(target.window_id))
+                window_bounds = Win32API.get_window_bounds(int(target.window_id))
+                if window_bounds:
+                    absolute_x = window_bounds.x + payload["relative"]["x"]
+                    absolute_y = window_bounds.y + payload["relative"]["y"]
+                else:
+                    absolute_x = payload["relative"]["x"]
+                    absolute_y = payload["relative"]["y"]
+                point_ctx = build_point_context(absolute_x, absolute_y)
+                payload["window_title"] = window_title
+                payload.update(point_ctx)
+                if not args.dry_run:
+                    WindowsDriver.focus_window(int(target.window_id))
+                    Win32API.send_click(absolute_x, absolute_y)
+                emit_action_result("click_image", args.dry_run, payload)
+            case "drag":
+                window_title, bounds = resolve_window_context(args.window_id)
+                validate_relative_coords(args.x1, args.y1, bounds)
+                validate_relative_coords(args.x2, args.y2, bounds)
+                absolute_x1 = bounds.x + args.x1
+                absolute_y1 = bounds.y + args.y1
+                absolute_x2 = bounds.x + args.x2
+                absolute_y2 = bounds.y + args.y2
+                from_ctx = build_point_context(absolute_x1, absolute_y1)
+                to_ctx = build_point_context(absolute_x2, absolute_y2)
+                data = {
+                    "window_id": str(args.window_id), "window_title": window_title,
+                    "from": {"relative": {"x": args.x1, "y": args.y1}, **from_ctx},
+                    "to": {"relative": {"x": args.x2, "y": args.y2}, **to_ctx},
+                    "duration_ms": args.duration_ms,
+                }
+                if not args.dry_run:
+                    WindowsDriver.focus_window(args.window_id)
+                    Win32API.send_drag(absolute_x1, absolute_y1, absolute_x2, absolute_y2, duration_ms=args.duration_ms)
+                emit_action_result("drag", args.dry_run, data)
+            case "type":
+                window_title = Win32API.get_window_text(args.window_id)
+                data = {"window_id": str(args.window_id), "window_title": window_title, "text": args.text, "length": len(args.text)}
+                if not args.dry_run:
+                    WindowsDriver.focus_window(args.window_id)
+                    Win32API.move_mouse_to_window_center(args.window_id)
+                    Win32API.send_type_text(args.text)
+                emit_action_result("type_text", args.dry_run, data)
+            case "press-key":
+                window_title = Win32API.get_window_text(args.window_id)
+                data = {"window_id": str(args.window_id), "window_title": window_title, "key": args.key}
+                if not args.dry_run:
+                    WindowsDriver.focus_window(args.window_id)
+                    Win32API.move_mouse_to_window_center(args.window_id)
+                    Win32API.send_press_key(args.key)
+                emit_action_result("press_key", args.dry_run, data)
+            case "hotkey":
+                window_title = Win32API.get_window_text(args.window_id)
+                data = {"window_id": str(args.window_id), "window_title": window_title, "keys": args.keys}
+                if not args.dry_run:
+                    WindowsDriver.focus_window(args.window_id)
+                    Win32API.move_mouse_to_window_center(args.window_id)
+                    Win32API.send_hotkey(args.keys)
+                emit_action_result("hotkey", args.dry_run, data)
+            case "clear-text":
+                window_title = Win32API.get_window_text(args.window_id)
+                data = {"window_id": str(args.window_id), "window_title": window_title}
+                if not args.dry_run:
+                    WindowsDriver.focus_window(args.window_id)
+                    Win32API.move_mouse_to_window_center(args.window_id)
+                    Win32API.send_hotkey(["ctrl", "a"])
+                    Win32API.send_press_key("delete")
+                emit_action_result("clear_text", args.dry_run, data)
+            case _:
+                emit_action(False, args.action_command, {"window_id": str(args.window_id), "error": f"unknown action subcommand: {args.action_command}"})
+                return 1
+        return 0
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        emit_action(False, args.action_command, {"window_id": str(args.window_id), "error": str(e)})
+        return 1
 
 
 def _handle_control(args: argparse.Namespace) -> int:
     """Handle control subcommands (Win32 control operations)."""
     from output_utils import build_control_info
     from win32_driver import Win32Driver
+    from win32_utils import Win32API
 
-    hwnd = int(args.hwnd)
-    control_info = build_control_info(hwnd)
+    hwnd = args.hwnd
 
     try:
+        bounds = Win32API.get_window_bounds(hwnd)
+        if bounds is None:
+            raise ValueError(f"control not found: hwnd {hwnd}")
+
+        control_info = build_control_info(hwnd)
+
         match args.control_command:
             case "set-text":
                 Win32Driver.set_text(hwnd, args.text)
@@ -514,9 +600,10 @@ def _handle_control(args: argparse.Namespace) -> int:
                 indices = Win32Driver.listbox_selected_indices(hwnd)
                 emit_action(True, "listbox_selected_indices", {**control_info, "indices": indices})
             case _:
-                return -1
+                emit_action(False, args.control_command, {"hwnd": str(hwnd), "error": f"unknown control subcommand: {args.control_command}"})
+                return 1
     except Exception as e:  # pylint: disable=broad-exception-caught
-        emit_action(False, args.control_command, {**control_info, "error": str(e)})
+        emit_action(False, args.control_command, {"hwnd": str(hwnd), "error": str(e)})
         return 1
     return 0
 
@@ -525,12 +612,19 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
     """Handle uia-control subcommands (UIA element operations)."""
     from output_utils import build_uia_control_info
     from uia_driver import UIADriver
+    from win32_utils import Win32API
 
     wid = args.window_id
     eid = args.element_id
-    uia_info = build_uia_control_info(wid, eid)
+
+    if not eid or not eid.strip():
+        emit_action(False, "uia_control", {"window_id": str(wid), "error": "element_id must not be empty"})
+        return 1
 
     try:
+        Win32API.validate_window_id(args.window_id)
+        uia_info = build_uia_control_info(wid, eid)
+
         match args.uia_control_command:
             case "click":
                 UIADriver.click(wid, eid)
@@ -626,9 +720,10 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
                 value = UIADriver.slider_max(wid, eid)
                 emit_action(True, "slider_max", {**uia_info, "value": value})
             case _:
-                return -1
+                emit_action(False, args.uia_control_command, {"window_id": str(wid), "element_id": eid, "error": f"unknown uia-control subcommand: {args.uia_control_command}"})
+                return 1
     except Exception as e:  # pylint: disable=broad-exception-caught
-        emit_action(False, args.uia_control_command, {**uia_info, "error": str(e)})
+        emit_action(False, args.uia_control_command, {"window_id": str(wid), "element_id": eid, "error": str(e)})
         return 1
     return 0
 
@@ -636,16 +731,28 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
 def _handle_screenshot(args: argparse.Namespace) -> int:
     """Handle screenshot subcommands."""
     from windows_driver import WindowsDriver
+    from win32_utils import Win32API
 
     rect = None
-    if args.x is not None and args.y is not None and args.width is not None and args.height is not None:
+    rect_args = [args.x, args.y, args.width, args.height]
+    provided_count = sum(1 for v in rect_args if v is not None)
+    if provided_count == 4:
         rect = (args.x, args.y, args.width, args.height)
-    if args.dry_run:
-        emit(ActionResult(ok=True, code="DRY_RUN", message="screenshot preview generated", data={"window_id": args.window_id, "output": args.output, "rect": rect}).to_dict())
-    else:
-        output_path = WindowsDriver.screenshot_window(args.window_id, args.output, rect)
-        emit(ActionResult(ok=True, code="OK", message="screenshot executed", data={"window_id": args.window_id, "output": output_path}).to_dict())
-    return 0
+    elif provided_count > 0:
+        emit_action(False, "screenshot", {"error": "crop requires all four parameters: --x, --y, --width, --height"})
+        return 1
+
+    try:
+        if args.dry_run:
+            emit(ActionResult(ok=True, code="DRY_RUN", message="screenshot preview generated", data={"window_id": args.window_id, "output": args.output, "rect": rect}).to_dict())
+        else:
+            Win32API.validate_window_id(args.window_id)
+            output_path = WindowsDriver.screenshot_window(args.window_id, args.output, rect)
+            emit(ActionResult(ok=True, code="OK", message="screenshot executed", data={"window_id": args.window_id, "output": output_path}).to_dict())
+        return 0
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        emit_action(False, "screenshot", {"window_id": str(args.window_id), "output": args.output, "rect": rect, "error": str(e)})
+        return 1
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -679,7 +786,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     try:
         result = handler(args)
-        return result if result >= 0 else 1
+        return result
     except ValueError as e:
         _logger.debug("validation error: %s", e)
         emit(ActionResult(ok=False, code="VALIDATION_ERROR", message=str(e)).to_dict())

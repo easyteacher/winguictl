@@ -25,8 +25,19 @@ from constants import WIN32_CONTROL_TYPE_MAP
 from models import ElementFormatter
 from win32_utils import Win32API
 
+_win32_desktop: Optional[Desktop] = None
+
+
+def _get_win32_desktop() -> Desktop:
+    """Get or create a cached Win32 Desktop instance."""
+    global _win32_desktop
+    if _win32_desktop is None:
+        _win32_desktop = Desktop(backend="win32")
+    return _win32_desktop
+
 
 class Win32Driver:
+    """Driver class for Win32 control operations."""
 
     @staticmethod
     def _wrap_hwnd(hwnd: int) -> HwndWrapper:
@@ -40,6 +51,8 @@ class Win32Driver:
         Matching strategy (by priority):
         1. Exact match (case-insensitive)
         2. Prefix match (case-insensitive, pattern must be at least 3 characters)
+           For short patterns (<5 chars), requires delimiter (dot/underscore) after prefix
+           to avoid false positives like "ButtonCustom" matching "Button"
         """
         if not class_name:
             return None
@@ -48,8 +61,16 @@ class Win32Driver:
             if pattern.lower() == class_lower:
                 return control_type
         for pattern, control_type in WIN32_CONTROL_TYPE_MAP.items():
-            if len(pattern) >= 3 and class_lower.startswith(pattern.lower()):
-                return control_type
+            pattern_lower = pattern.lower()
+            if len(pattern) < 3:
+                continue
+            if not class_lower.startswith(pattern_lower):
+                continue
+            if len(pattern) < 5:
+                remaining = class_lower[len(pattern):]
+                if remaining and not remaining[0] in (".", "_"):
+                    continue
+            return control_type
         return None
 
     @staticmethod
@@ -109,7 +130,16 @@ class Win32Driver:
 
     @staticmethod
     def is_checked(hwnd: int) -> Optional[bool]:
-        """Get the checked state of a checkbox."""
+        """Get the checked state of a checkbox.
+
+        Returns:
+            True if checked, False if unchecked, None if indeterminate or not a checkbox.
+
+        Note:
+            This returns Optional[bool] for Win32 checkboxes, while UIA's get_toggle_state
+            returns int (0=off, 1=on, 2=indeterminate). Both patterns match their underlying
+            API conventions.
+        """
         return ButtonWrapper(hwnd).is_checked()
 
     @staticmethod
@@ -148,16 +178,15 @@ class Win32Driver:
         return ListBoxWrapper(hwnd).selected_indices()
 
     @staticmethod
-    def snapshot_hwnd_tree(window_id: str) -> str:
+    def snapshot_hwnd_tree(window_id: int) -> str:
         """Generate an HWND control tree snapshot for the window.
 
         Traverses the target window and all its descendant controls,
         formatting each control's handle, text, class name, visibility,
         enabled state, and other information.
         """
-        target_handle = int(window_id)
-        desktop = Desktop(backend="win32")
-        wrapper = desktop.window(handle=target_handle)
+        desktop = _get_win32_desktop()
+        wrapper = desktop.window(handle=window_id)
         lines: list[str] = []
         visited: set[int] = set()
 

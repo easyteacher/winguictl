@@ -7,56 +7,60 @@
 
 Performs text recognition on window screenshots using WeChat OCR engine,
 supporting both full-window OCR snapshots and text finding modes.
-Depends on wx_ocr library and Pillow library.
+Depends on optional wx_ocr library and Pillow library.
 """
 
+import logging
 import os
 import tempfile
 
-import wx_ocr
 from PIL import Image
 
+from constants import check_wx_ocr_available, wx_ocr
 from models import Bounds, ElementFormatter, ElementInfo
 from win32_utils import Win32API
 
+_logger = logging.getLogger(__name__)
+
 
 class OCRDriver:
+    """Driver class for OCR text recognition operations."""
 
     @staticmethod
-    def _capture_and_ocr(window_id: str) -> list[dict]:
+    def _capture_and_ocr(window_id: int) -> list[dict]:
         """Capture window screenshot and perform OCR recognition.
 
         Saves window screenshot to a temporary PNG file, calls wx_ocr for text recognition,
         and automatically deletes the temporary file after recognition.
 
         Args:
-            window_id: Window handle string
+            window_id: Window handle
 
         Returns:
             OCR result list, each item contains "text" and "location" fields
 
         Raises:
-            RuntimeError: OCR recognition failed
+            RuntimeError: OCR recognition failed or wx_ocr not installed
         """
-        hwnd = int(window_id)
-        _, _, width, height, data = Win32API.capture_window_bgra(hwnd)
-        rgb_data = bytearray()
-        for i in range(0, len(data), 4):
-            rgb_data.extend([data[i + 2], data[i + 1], data[i]])
-        image = Image.frombytes("RGB", (width, height), bytes(rgb_data))
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            tmp_path = tmp.name
-        image.save(tmp_path)
+        check_wx_ocr_available()
+
+        _, _, width, height, data = Win32API.capture_window_bgra(window_id)
+        image = Image.frombytes("RGBA", (width, height), bytes(data)).convert("RGB")
+        tmp_path = None
         try:
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                tmp_path = tmp.name
+            image.save(tmp_path)
             result = wx_ocr.ocr(tmp_path)
             return result if isinstance(result, list) else []
         except Exception as e:
             raise RuntimeError(f"WeChat OCR failed: {e}") from e
         finally:
-            os.unlink(tmp_path)
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
     @staticmethod
-    def snapshot_ocr(window_id: str) -> str:
+    def snapshot_ocr(window_id: int) -> str:
         """Generate an OCR text snapshot for the window.
 
         Performs OCR recognition on the window screenshot, formatting each
@@ -76,7 +80,7 @@ class OCRDriver:
 
     @staticmethod
     def find_ocr_text(
-        window_id: str,
+        window_id: int,
         text: str,
         exact: bool = False,
         confidence_threshold: float = 0.0,
@@ -84,18 +88,20 @@ class OCRDriver:
         """Find specified text in the window via OCR.
 
         Args:
-            window_id: Window handle string
+            window_id: Window handle
             text: Text to find
             exact: Whether to match exactly (default is fuzzy match)
             confidence_threshold: Minimum confidence threshold (0.0-1.0).
                 Note: wx_ocr does not provide confidence scores, so this parameter
                 is currently ignored. All matches are assigned a fixed confidence of 0.9.
+                Included for API consistency with other find methods.
 
         Returns:
             List of matching ElementInfo
         """
+        if confidence_threshold > 0.0:
+            _logger.warning("confidence_threshold is not supported by wx_ocr; parameter ignored")
         results = OCRDriver._capture_and_ocr(window_id)
-        _ = confidence_threshold
         matches: list[ElementInfo] = []
         query = text.strip().casefold()
         for r in results:
@@ -116,7 +122,7 @@ class OCRDriver:
             matches.append(
                 ElementInfo(
                     element_id=f"ocr-{left}-{top}",
-                    window_id=str(int(window_id)),
+                    window_id=str(window_id),
                     text=candidate,
                     bounds=Bounds(x=left, y=top, width=right - left, height=bottom - top),
                     source="ocr",

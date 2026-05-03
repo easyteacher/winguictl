@@ -11,35 +11,44 @@ Provides multiple element finding strategies:
 - find_image: Find images through OpenCV template matching
 """
 
+import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import win32gui
 from pywinauto import Desktop
 
+from constants import _OPENCV_AVAILABLE, check_opencv_available, cv2, np
 from models import Bounds, ElementFormatter, ElementInfo
 from win32_utils import Win32API
 
-try:
-    import cv2
-    import numpy as np
-    _OPENCV_AVAILABLE = True
-except ImportError:
-    _OPENCV_AVAILABLE = False
-    cv2 = None
-    np = None
+if TYPE_CHECKING:
+    from pywinauto.uia_element_info import UIAElementInfo
+
+_logger = logging.getLogger(__name__)
+
+_uia_desktop: Optional[Desktop] = None
+
+
+def _get_uia_desktop() -> Desktop:
+    """Get or create a cached UIA Desktop instance."""
+    global _uia_desktop
+    if _uia_desktop is None:
+        _uia_desktop = Desktop(backend="uia")
+    return _uia_desktop
 
 
 class FindDriver:
+    """Driver class for element finding operations."""
 
     @staticmethod
-    def find_text(window_id: str, text: str, exact: bool = False) -> str:
+    def find_text(window_id: int, text: str, exact: bool = False) -> str:
         """Find specified text in the window.
 
         Prioritizes UIA tree search; falls back to Win32 enumeration if no results found.
 
         Args:
-            window_id: Window handle string
+            window_id: Window handle
             text: Text to find
             exact: Whether to match exactly
 
@@ -49,14 +58,13 @@ class FindDriver:
         query = text.strip()
         if not query:
             raise ValueError("text query must not be empty")
-        hwnd = int(window_id)
         matches: list[ElementInfo] = []
         lowered_query = query.casefold()
 
         try:
-            desktop = Desktop(backend="uia")
-            wrapper = desktop.window(handle=hwnd)
-            for child in wrapper.descendants():
+            desktop = _get_uia_desktop()
+            wrapper = desktop.window(handle=window_id)
+            for child in wrapper.iter_descendants():
                 try:
                     info = child.element_info
                     name = (getattr(info, "name", "") or "").strip()
@@ -72,10 +80,17 @@ class FindDriver:
                     control_id = getattr(info, "control_id", None)
                     runtime_id_raw = getattr(info, "runtime_id", None)
                     runtime_id = "-".join(str(x) for x in runtime_id_raw) if runtime_id_raw else None
+                    handle = getattr(info, "handle", None)
+                    if handle:
+                        element_id = str(handle)
+                    elif runtime_id:
+                        element_id = f"uia-{runtime_id}"
+                    else:
+                        element_id = f"uia-{control_id}" if control_id else "uia-unknown"
                     matches.append(
                         ElementInfo(
-                            element_id=str(getattr(info, "handle", None) or id(info)),
-                            window_id=str(hwnd),
+                            element_id=element_id,
+                            window_id=str(window_id),
                             text=name,
                             bounds=Bounds.from_rect(rect),
                             class_name=(getattr(info, "class_name", "") or "").strip() or None,
@@ -86,13 +101,14 @@ class FindDriver:
                             confidence=1.0 if exact else 0.95,
                         )
                     )
-                except Exception:  # pylint: disable=broad-exception-caught
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    _logger.debug("Error processing UIA descendant: %s", e)
                     continue
-        except Exception:  # pylint: disable=broad-exception-caught
-            pass
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            _logger.debug("UIA traversal failed for window %d: %s", window_id, e)
 
         if not matches:
-            matches = FindDriver._find_text_win32(hwnd, text, exact)
+            matches = FindDriver._find_text_win32(window_id, text, exact)
         return "\n".join(ElementFormatter.format_element(m) for m in matches)
 
     @staticmethod
@@ -138,7 +154,7 @@ class FindDriver:
         return matches
 
     @staticmethod
-    def _get_uia_element_id(info: Any) -> str:
+    def _get_uia_element_id(info: "UIAElementInfo") -> str:
         """Generate a unique identifier string from UIA element info."""
         control_id = getattr(info, "control_id", None)
         if control_id is not None:
@@ -150,7 +166,7 @@ class FindDriver:
 
     @staticmethod
     def find_uia(
-        window_id: str,
+        window_id: int,
         text: Optional[str] = None,
         control_type: Optional[str] = None,
         exact: bool = False,
@@ -161,7 +177,7 @@ class FindDriver:
         At least one of text or control_type filter must be provided.
 
         Args:
-            window_id: Window handle string
+            window_id: Window handle
             text: Text filter condition (optional)
             control_type: Control type filter condition (optional)
             exact: Whether to match exactly
@@ -172,10 +188,9 @@ class FindDriver:
         """
         if text is None and control_type is None:
             raise ValueError("find_uia requires at least one filter")
-        target_handle = int(window_id)
-        desktop = Desktop(backend="uia")
-        wrapper = desktop.window(handle=target_handle)
-        descendants = [wrapper] + list(wrapper.descendants())
+        desktop = _get_uia_desktop()
+        wrapper = desktop.window(handle=window_id)
+        descendants = [wrapper] + wrapper.descendants()
 
         def normalize(value: Optional[str]) -> str:
             return (value or "").strip()
@@ -209,7 +224,7 @@ class FindDriver:
             results.append(
                 ElementInfo(
                     element_id=element_id,
-                    window_id=window_id,
+                    window_id=str(window_id),
                     text=candidate_name or candidate_control_type or candidate_automation_id,
                     bounds=Bounds(
                         x=int(rect.left),
@@ -232,30 +247,40 @@ class FindDriver:
 
     @staticmethod
     def find_image(  # pylint: disable=too-many-locals
-        window_id: str,
+        window_id: int,
         image_path: str,
         threshold: float = 0.9,
         max_results: int = 5,
+        overlap_threshold: float = 0.5,
     ) -> list[ElementInfo]:
         """Find image template in window using OpenCV template matching.
 
         Args:
-            window_id: Window handle string
+            window_id: Window handle
             image_path: Template image file path
             threshold: Match confidence threshold (0-1)
             max_results: Maximum number of results to return
+            overlap_threshold: IoU threshold for non-maximum suppression (0-1).
+                               Higher values allow more overlapping matches.
+                               Default 0.5 means matches with >50% overlap are suppressed.
 
         Returns:
             List of matching ElementInfo
 
         Raises:
             RuntimeError: If opencv-python is not installed or image cannot be loaded
+            ValueError: If threshold parameters are out of valid range
         """
-        if not _OPENCV_AVAILABLE:
-            raise RuntimeError("opencv-python is required for image matching. Install with: pip install opencv-python")
+        check_opencv_available()
 
-        hwnd = int(window_id)
-        _, _, width, height, data = Win32API.capture_window_bgra(hwnd)
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError(f"threshold must be between 0 and 1, got {threshold}")
+        if not 0.0 <= overlap_threshold <= 1.0:
+            raise ValueError(f"overlap_threshold must be between 0 and 1, got {overlap_threshold}")
+
+        _, _, width, height, data = Win32API.capture_window_bgra(window_id)
+        if width <= 0 or height <= 0:
+            raise RuntimeError(f"invalid window dimensions for image matching: {width}x{height}")
         img_array = np.frombuffer(data, dtype=np.uint8).reshape((height, width, 4))
         img_bgr = img_array[:, :, :3]
         template = cv2.imread(image_path, cv2.IMREAD_COLOR)  # pylint: disable=no-member
@@ -278,7 +303,7 @@ class FindDriver:
                 overlap_y = max(0, min(y + template_h, ky + template_h) - max(y, ky))
                 overlap_area = overlap_x * overlap_y
                 area = template_w * template_h
-                if area > 0 and overlap_area / area > 0.5:
+                if area > 0 and overlap_area / area > overlap_threshold:
                     suppressed = True
                     break
             if not suppressed:
@@ -291,7 +316,7 @@ class FindDriver:
             matches.append(
                 ElementInfo(
                     element_id=f"image-{x}-{y}",
-                    window_id=str(hwnd),
+                    window_id=str(window_id),
                     text=Path(image_path).name,
                     bounds=Bounds(x=x, y=y, width=template_w, height=template_h),
                     source="image",

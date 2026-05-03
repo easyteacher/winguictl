@@ -70,20 +70,20 @@ def build_control_info(hwnd: int) -> dict:
     }
 
 
-def build_uia_control_info(window_id: str, element_id: str) -> dict:
+def build_uia_control_info(window_id: int, element_id: str) -> dict:
     """Build UIA element information for output.
 
     Args:
-        window_id: Window handle string
+        window_id: Window handle
         element_id: Element identifier (automation_id or runtime_id)
 
     Returns:
         Dictionary with element and window information
     """
-    window_title = Win32API.get_window_text(int(window_id))
+    window_title = Win32API.get_window_text(window_id)
 
     return {
-        "window_id": window_id,
+        "window_id": str(window_id),
         "window_title": window_title,
         "element_id": element_id,
     }
@@ -159,17 +159,30 @@ def format_window_tree(windows: list[WindowInfo]) -> str:
     return "\n".join(lines)
 
 
-def resolve_window_context(window_id: str) -> tuple[str, "Bounds"]:
+def resolve_window_context(window_id: int) -> tuple[str, "Bounds"]:
     """Resolve window title and bounds, raising ValueError if window not found."""
-    window_title = Win32API.get_window_text(int(window_id))
-    bounds = Win32API.get_window_bounds(int(window_id))
+    window_title = Win32API.get_window_text(window_id)
+    bounds = Win32API.get_window_bounds(window_id)
     if bounds is None:
         raise ValueError(f"window not found: {window_id}")
     return window_title, bounds
 
 
 def validate_relative_coords(x: int, y: int, bounds: "Bounds") -> None:
-    """Validate that relative coordinates are within window bounds."""
+    """Validate that relative coordinates are within window bounds.
+
+    Note: This allows coordinates at the edge (bounds.width - 1, bounds.height - 1).
+    Window edges may not always be clickable depending on the application,
+    but this validation ensures coordinates are at least within the window area.
+
+    Args:
+        x: X coordinate relative to window
+        y: Y coordinate relative to window
+        bounds: Window bounds
+
+    Raises:
+        ValueError: If coordinates are outside window bounds
+    """
     if x < 0 or x >= bounds.width or y < 0 or y >= bounds.height:
         raise ValueError(f"coordinates ({x}, {y}) are outside window bounds (0-{bounds.width - 1}, 0-{bounds.height - 1})")
 

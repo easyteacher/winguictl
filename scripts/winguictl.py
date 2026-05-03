@@ -98,13 +98,11 @@ def _build_find_parser(subparsers: argparse._SubParsersAction) -> None:
     find_text = sp.add_parser("text", help="Find visible text inside a window.")
     find_text.add_argument("text", help="Text to search for")
     find_text.add_argument("--exact", action="store_true")
-    find_text.add_argument("--max-results", type=int, default=50)
 
     find_uia = sp.add_parser("uia", help="Find UIA controls inside a window.")
     find_uia.add_argument("--text")
     find_uia.add_argument("--control-type")
     find_uia.add_argument("--exact", action="store_true")
-    find_uia.add_argument("--max-results", type=int, default=20)
 
     find_ocr = sp.add_parser("ocr", help="Find OCR text inside a window.")
     find_ocr.add_argument("text", help="Text to search for")
@@ -114,7 +112,6 @@ def _build_find_parser(subparsers: argparse._SubParsersAction) -> None:
     find_image = sp.add_parser("image", help="Find an image template inside a window.")
     find_image.add_argument("--image-path", required=True)
     find_image.add_argument("--threshold", type=float, default=0.9, help="Match confidence threshold (0-1)")
-    find_image.add_argument("--max-results", type=int, default=5)
     find_image.add_argument("--overlap-threshold", type=float, default=0.5,
                             help="IoU threshold for non-maximum suppression (0-1). Higher values allow more overlapping matches.")
 
@@ -402,10 +399,10 @@ def _handle_find(args: argparse.Namespace) -> int:
         nonce = generate_nonce()
         match args.find_command:
             case "text":
-                content = FindDriver.find_text(args.window_id, args.text, exact=args.exact, max_results=args.max_results)
+                content = FindDriver.find_text(args.window_id, args.text, exact=args.exact)
                 print(wrap_with_boundary(content, nonce))
             case "uia":
-                content = FindDriver.find_uia(args.window_id, text=args.text, control_type=args.control_type, exact=args.exact, max_results=args.max_results)
+                content = FindDriver.find_uia(args.window_id, text=args.text, control_type=args.control_type, exact=args.exact)
                 print(wrap_with_boundary(content, nonce))
             case "ocr":
                 result = OCRDriver.find_ocr_text(args.window_id, args.text, exact=args.exact, confidence_threshold=args.confidence_threshold)
@@ -416,7 +413,6 @@ def _handle_find(args: argparse.Namespace) -> int:
                     window_id=args.window_id,
                     image_path=args.image_path,
                     threshold=args.threshold,
-                    max_results=args.max_results,
                     overlap_threshold=args.overlap_threshold
                 )
                 content = "\n".join(ElementFormatter.format_element(m) for m in result) if result else ""

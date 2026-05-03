@@ -89,7 +89,7 @@ class FindDriver:
         return f"uia-{id(info)}"
 
     @staticmethod
-    def find_text(window_id: int, text: str, exact: bool = False, max_results: int = 50) -> str:
+    def find_text(window_id: int, text: str, exact: bool = False) -> str:
         """Find specified text in the window.
 
         Prioritizes UIA tree search; falls back to Win32 enumeration if no results found.
@@ -98,7 +98,6 @@ class FindDriver:
             window_id: Window handle
             text: Text to find
             exact: Whether to match exactly
-            max_results: Maximum number of results to return
 
         Returns:
             Formatted matching result string with window-relative coordinates.
@@ -113,7 +112,6 @@ class FindDriver:
             desktop = _get_uia_desktop()
             wrapper = desktop.window(handle=window_id)
 
-            # Get window position to convert screen coordinates to relative
             window_bounds = Win32API.get_window_bounds(window_id)
             win_x = window_bounds.x if window_bounds else 0
             win_y = window_bounds.y if window_bounds else 0
@@ -150,8 +148,6 @@ class FindDriver:
                             confidence=1.0 if exact else 0.95,
                         )
                     )
-                    if len(matches) >= max_results:
-                        break
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     _logger.debug("Error processing UIA descendant: %s", e)
                     continue
@@ -219,7 +215,6 @@ class FindDriver:
         text: Optional[str] = None,
         control_type: Optional[str] = None,
         exact: bool = False,
-        max_results: int = 20,
     ) -> str:
         """Find controls through the UIA tree.
 
@@ -234,7 +229,6 @@ class FindDriver:
             text: Text filter condition (optional)
             control_type: Control type filter condition (optional)
             exact: Whether to match exactly
-            max_results: Maximum number of results to return
 
         Returns:
             Formatted matching result string with window-relative coordinates.
@@ -244,7 +238,6 @@ class FindDriver:
         desktop = _get_uia_desktop()
         wrapper = desktop.window(handle=window_id)
 
-        # Get window position to convert screen coordinates to relative
         window_bounds = Win32API.get_window_bounds(window_id)
         win_x = window_bounds.x if window_bounds else 0
         win_y = window_bounds.y if window_bounds else 0
@@ -255,14 +248,14 @@ class FindDriver:
         uia_control_type: Optional[str] = None
         if control_type is not None and exact:
             try:
-                from pywinauto.windows.uia_defines import IUIA  # pylint: disable=import-error,no-name-in-module
+                from pywinauto.uia_defines import IUIA
                 ct_lower = control_type.strip().casefold()
                 for k in IUIA().known_control_types:
                     if k.casefold() == ct_lower:
                         uia_control_type = k
                         break
             except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.debug("Failed to resolve UIA control type: %s", e)
+                _logger.warning("Failed to resolve UIA control type: %s", e)
 
         lowered_text = normalize(text).casefold() if text is not None else None
         lowered_ct = normalize(control_type).casefold() if control_type is not None else None
@@ -270,7 +263,9 @@ class FindDriver:
         iter_kwargs = {"control_type": uia_control_type} if uia_control_type else {}
         candidates = itertools.chain([wrapper], wrapper.iter_descendants(**iter_kwargs))
 
-        results: list[ElementInfo] = []
+        priority_results: list[ElementInfo] = []
+        other_results: list[ElementInfo] = []
+
         for candidate in candidates:
             info = candidate.element_info
             candidate_name = normalize(getattr(info, "name", ""))
@@ -302,32 +297,35 @@ class FindDriver:
             element_id = FindDriver._get_uia_element_id(info)
             control_id = getattr(info, "control_id", None)
             runtime_id = _format_runtime_id(getattr(info, "runtime_id", None))
+            candidate_class_name = normalize(getattr(info, "class_name", ""))
 
-            results.append(
-                ElementInfo(
-                    element_id=element_id,
-                    window_id=str(window_id),
-                    text=candidate_name or candidate_control_type or candidate_automation_id,
-                    bounds=Bounds.from_rect_relative(rect, win_x, win_y),
-                    class_name=normalize(getattr(info, "class_name", "")) or None,
-                    control_type=candidate_control_type or None,
-                    automation_id=candidate_automation_id or None,
-                    control_id=control_id,
-                    runtime_id=runtime_id,
-                    source="uia",
-                    confidence=1.0 if exact else 0.95,
-                )
+            element_info = ElementInfo(
+                element_id=element_id,
+                window_id=str(window_id),
+                text=candidate_name or candidate_control_type or candidate_automation_id,
+                bounds=Bounds.from_rect_relative(rect, win_x, win_y),
+                class_name=candidate_class_name or None,
+                control_type=candidate_control_type or None,
+                automation_id=candidate_automation_id or None,
+                control_id=control_id,
+                runtime_id=runtime_id,
+                source="uia",
+                confidence=1.0 if exact else 0.95,
             )
-            if len(results) >= max_results:
-                break
-        return "\n".join(ElementFormatter.format_element(r) for r in results)
+
+            if candidate_class_name == "UIProperty":
+                other_results.append(element_info)
+            else:
+                priority_results.append(element_info)
+
+        combined_results = priority_results + other_results
+        return "\n".join(ElementFormatter.format_element(r) for r in combined_results)
 
     @staticmethod
     def find_image(  # pylint: disable=too-many-locals
         window_id: int,
         image_path: str,
         threshold: float = 0.9,
-        max_results: int = 5,
         overlap_threshold: float = 0.5,
     ) -> list[ElementInfo]:
         """Find image template in window using OpenCV template matching.
@@ -336,7 +334,6 @@ class FindDriver:
             window_id: Window handle
             image_path: Template image file path
             threshold: Match confidence threshold (0-1)
-            max_results: Maximum number of results to return
             overlap_threshold: IoU threshold for non-maximum suppression (0-1).
                                Higher values allow more overlapping matches.
                                Default 0.5 means matches with >50% overlap are suppressed.
@@ -385,8 +382,6 @@ class FindDriver:
                     break
             if not suppressed:
                 kept.append((x, y, score))
-            if len(kept) >= max_results:
-                break
 
         matches: list[ElementInfo] = []
         for x, y, score in kept:

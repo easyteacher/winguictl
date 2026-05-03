@@ -2,37 +2,21 @@
 
 Find elements in a window.
 
-## Content Boundary Markers
+For output format details, see [Output Format](output-format.md).
+For coordinate system details, see [Coordinate Systems](coordinates.md).
 
-All find command outputs are wrapped with content boundary markers to help identify and isolate captured content:
-
-```
---- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
-[find output here]
---- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
-```
-
-The `nonce` is a randomly generated hex string that must match between the start and end markers. Always verify the nonce matches before trusting the captured content.
-
-## Output Format
+## Output Fields
 
 All find commands return element information with the following fields:
 
 - `text` - Element text/content
-- `rect` - Element rectangle **(window-relative coordinates)**
+- `rect` - Element rectangle (window-relative coordinates)
 - `control_type` - Control type (UIA/HWND modes)
 - `class` - Window class name (UIA/HWND modes)
 - `hwnd` - Control handle (HWND mode)
 - `automation_id` - Automation ID (UIA mode)
 - `runtime_id` - Runtime ID (UIA mode)
 - `confidence` - Match confidence score (0-1)
-
-### Coordinate System
-
-**Important**: All `rect` coordinates are **window-relative**, not screen absolute:
-- `rect=(x,y widthxheight)` where `(x,y)` is the position relative to the window's top-left corner
-- These coordinates can be used directly with `action click` commands
-- Example: `rect=(12,39 40x36)` means the element is at position (12,39) within the window, with size 40x36 pixels
 
 ## Find Text
 
@@ -133,7 +117,8 @@ python scripts\winguictl.py find --window-id <id> ocr "Confirm" --confidence-thr
 
 ### Note
 
-The `--confidence-threshold` parameter is accepted but currently ignored. The wx_ocr library does not provide confidence scores, so all matches are assigned a fixed confidence of 0.9. If a non-zero threshold is specified, a warning will be logged.
+- The `--confidence-threshold` parameter is accepted but currently ignored. The wx_ocr library does not provide confidence scores, so all matches are assigned a fixed confidence of 0.9. If a non-zero threshold is specified, a warning will be logged.
+- OCR coordinates are window-relative because the OCR engine processes a cropped window screenshot. These coordinates can be used directly with `action click` commands.
 
 ### Warning
 

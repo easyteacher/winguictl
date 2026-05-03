@@ -6,6 +6,12 @@ This document describes how to test the Win32Driver and UIADriver functionality.
 
 ## Preparation
 
+### Install Dependencies
+
+```powershell
+pip install -r requirements.txt
+```
+
 ### Launch Test Applications
 
 ```powershell
@@ -27,6 +33,16 @@ Output example:
 - "Calculator" [window_id="4727732" bounds=(32,35 600x800) pid="35540" process="ApplicationFrameHost.exe"]
 - "Untitled - Notepad" [window_id="533514" bounds=(78,78 894x805) pid="37836" process="Notepad.exe"]
 ```
+
+### Debug Mode
+
+Use `--verbose` or `-v` to enable debug logging for troubleshooting:
+
+```powershell
+python scripts\winguictl.py --verbose window list
+```
+
+This outputs detailed diagnostic information to stderr, including timestamps, log levels, and debug messages from drivers.
 
 ---
 

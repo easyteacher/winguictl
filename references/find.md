@@ -90,9 +90,13 @@ The `--control-type` parameter accepts standard UIA (UI Automation) control type
 # Find text in a window via OCR (fuzzy match)
 python scripts\winguictl.py find --window-id <id> ocr "Confirm"
 
-# Find text via OCR, with confidence threshold to filter low-quality results
+# Find text via OCR, with confidence threshold
 python scripts\winguictl.py find --window-id <id> ocr "Confirm" --confidence-threshold 0.7
 ```
+
+### Note
+
+The `--confidence-threshold` parameter is currently reserved for future use. The wx_ocr library does not provide confidence scores, so all matches are assigned a fixed confidence of 0.9.
 
 ### Warning
 

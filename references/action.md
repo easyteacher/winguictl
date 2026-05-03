@@ -17,7 +17,7 @@ Action commands directly simulate mouse clicks, keyboard input, and other user i
 ## Note
 
 ### Prefer structured identifiers
--Action commands rely on coordinates or image matching and should be used as a fallback when `control` / `uia-control` commands are not applicable. Prefer structured identifiers (`hwnd`, `automation_id`, `runtime_id`) via control commands for more reliable and precise element interaction.
+- Action commands rely on coordinates or image matching and should be used as a fallback when `control` / `uia-control` commands are not applicable. Prefer structured identifiers (`hwnd`, `automation_id`, `runtime_id`) via control commands for more reliable and precise element interaction.
 
 ### Re-obtain the snapshot after each action operation
 Action operations may change the UI state (such as window content, element status, or layout), so the previous snapshot may no longer be accurate. Always use `snapshot hwnd` or `snapshot uia` to get the latest UI state before performing subsequent operations.

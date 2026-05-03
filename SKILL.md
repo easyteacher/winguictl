@@ -84,7 +84,6 @@ For detailed command documentation, see:
 - [Action](references/action.md) - Execute interaction operations
 - [Control](references/control.md) - Directly control specific controls (Win32 and UIA)
 - [Screenshot](references/screenshot.md) - Capture window screenshots
-- [Driver Test](references/driver_test.md) - Driver test steps
 
 ## Workflow
 
@@ -125,13 +124,45 @@ For comprehensive security guidelines, see [Security Guidelines](references/SECU
 
 ## Dependencies
 
-Install dependencies in a virtual environment from trusted package indexes, pin known-good versions where possible, and review dependency provenance before use.
+For dependency details, see [Dependencies](references/dependencies.md).
 
-| Package | Install | Required | Description |
-|---------|---------|----------|-------------|
-| Python 3.14+ | — | Yes | Runtime |
-| pywinauto | `pip install pywinauto` | Yes | Windows GUI automation (core dependency) |
-| pywin32 | `pip install pywin32` | Yes | Win32 API Pythonic wrapper (win32gui/win32api/win32con/win32ui) |
-| Pillow | `pip install Pillow` | Yes | Image processing |
-| wx-ocr | `pip install wx-ocr` | No | Self-contained WeChat OCR, no external dependencies |
-| opencv-python | `pip install opencv-python` | No | Image template matching |
+## Global Options
+
+### Verbose Mode
+
+Use `--verbose` or `-v` to enable debug logging output:
+
+```powershell
+python scripts\winguictl.py --verbose window list
+```
+
+This outputs detailed diagnostic information to stderr, including:
+- Timestamps
+- Log levels
+- Module names
+- Debug messages from drivers
+
+## Error Handling
+
+The CLI returns appropriate exit codes:
+- `0` - Success
+- `1` - Error (validation error, operation failed, unexpected error)
+
+Error output is formatted as JSON with the following structure:
+```json
+{
+  "ok": false,
+  "code": "VALIDATION_ERROR",
+  "message": "coordinates (100, 200) are outside window bounds"
+}
+```
+
+### Error Codes
+
+| Code | Description |
+|------|-------------|
+| `OK` | Operation succeeded |
+| `FAILED` | Operation failed (business logic) |
+| `VALIDATION_ERROR` | Input validation failed |
+| `ERROR` | Unexpected error |
+| `DRY_RUN` | Preview mode (not an error) |

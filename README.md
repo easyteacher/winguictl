@@ -11,6 +11,19 @@ Windows desktop automation CLI tool built on pywinauto and pywin32.
 - **Control Operations** — Directly manipulate Win32 controls (checkbox, combobox, etc.) and UIA elements (scroll, expand/collapse, slider, etc.)
 - **Screenshot Capture** — Capture full window or rectangular region screenshots
 
+## Installation
+
+### Prerequisites
+
+- Python 3.10 or higher
+- Windows operating system
+
+### Install Dependencies
+
+```powershell
+pip install -r requirements.txt
+```
+
 ## Quick Start
 
 ```powershell
@@ -32,6 +45,20 @@ python scripts\winguictl.py action --window-id <id> type --text "Hello World"
 # Take a screenshot
 python scripts\winguictl.py screenshot --window-id <id> --output shot.png
 ```
+
+## Global Options
+
+```powershell
+# Enable debug logging
+python scripts\winguictl.py --verbose window list
+python scripts\winguictl.py -v window list
+```
+
+## Documentation
+
+- [SKILL.md](SKILL.md) — Complete skill documentation with workflow and security guidelines
+- [AGENTS.md](AGENTS.md) — Architecture and development best practices
+- [references/](references/) — Detailed command reference documentation
 
 ## License
 

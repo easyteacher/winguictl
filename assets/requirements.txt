@@ -1,0 +1,12 @@
+# Core dependencies
+pywinauto>=0.6.8
+pywin32>=305
+comtypes>=1.2.0
+
+# OCR support
+wx-ocr>=1.0.0
+Pillow>=9.0.0
+
+# Image matching (optional, for find image functionality)
+opencv-python>=4.5.0
+numpy>=1.20.0

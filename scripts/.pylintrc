@@ -1,0 +1,26 @@
+[MASTER]
+extension-pkg-allow-list=win32api,win32con,win32gui,win32ui,win32process,wx_ocr
+
+[MESSAGES CONTROL]
+disable=
+    C0114,
+    C0115,
+    C0116,
+    C0301,
+    C0415,
+    W0611,
+    I1101,
+    R0902,
+    R0904,
+    R0913,
+    R0917,
+    R1702
+
+[FORMAT]
+max-line-length=120
+
+[DESIGN]
+max-locals=25
+max-branches=35
+max-statements=80
+max-public-methods=35

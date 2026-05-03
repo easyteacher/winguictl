@@ -273,8 +273,8 @@ def _build_uia_control_parser(subparsers: argparse._SubParsersAction) -> None:
     set_value.add_argument("value", help="Value to set.")
 
     sp.add_parser("select", help="Select the element (for list items, tree items).")
-    sp.add_parser("expand", help="Expand the element (for combo boxes, trees).")
-    sp.add_parser("collapse", help="Collapse the element.")
+    sp.add_parser("expand", help="Expand the element (for combo boxes, trees, menu items).")
+    sp.add_parser("collapse", help="Collapse the element (for combo boxes, trees, menu items).")
     sp.add_parser("is-expanded", help="Check if element is expanded.")
 
     combo_select = sp.add_parser("combo-select", help="Select item in combo box.")

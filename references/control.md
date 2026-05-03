@@ -92,7 +92,7 @@ python scripts\winguictl.py uia-control --window-id <id> --element-id "Button1" 
 # Set element value (for editable controls)
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Edit1" set-value "New Text"
 
-# Expand/collapse a node (for TreeItem, ComboBox, etc.)
+# Expand/collapse a node (for TreeItem, ComboBox, MenuItem, etc.)
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Node1" expand
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Node1" collapse
 
@@ -129,12 +129,12 @@ python scripts\winguictl.py uia-control --window-id <id> --element-id "Check1" g
 | `set-value` | Set element value | `--window-id`, `--element-id`, `value` (positional) |
 | `set-text` | Set element text | `--window-id`, `--element-id`, `text` (positional) |
 | `set-focus` | Set focus to element | `--window-id`, `--element-id` |
-| `invoke` | Invoke element (buttons, menu items) | `--window-id`, `--element-id` |
+| `invoke` | Invoke element (buttons) | `--window-id`, `--element-id` |
 | `toggle` | Toggle element state | `--window-id`, `--element-id` |
 | `get-toggle-state` | Get toggle state (0=off, 1=on, 2=indeterminate) | `--window-id`, `--element-id` |
 | `select` | Select element | `--window-id`, `--element-id` |
-| `expand` | Expand node | `--window-id`, `--element-id` |
-| `collapse` | Collapse node | `--window-id`, `--element-id` |
+| `expand` | Expand node (TreeItem, ComboBox, MenuItem) | `--window-id`, `--element-id` |
+| `collapse` | Collapse node (TreeItem, ComboBox, MenuItem) | `--window-id`, `--element-id` |
 | `is-expanded` | Check if element is expanded | `--window-id`, `--element-id` |
 | `scroll` | Scroll element | `--window-id`, `--element-id`, `direction`, `--amount`, `--count` |
 | `combo-select` | Select combo box item | `--window-id`, `--element-id`, `item` (positional: index or text), `--index` (treat item as 0-based index) |

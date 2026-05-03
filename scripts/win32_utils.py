@@ -144,7 +144,7 @@ class Win32API:
             hwnd = win32gui.WindowFromPoint((x, y))
             return hwnd if hwnd else None
         except win32gui.error as err:
-            _logger.debug("Win32 error getting window from point (%d, %d): %s", x, y, err)
+            _logger.warning("Win32 error getting window from point (%d, %d): %s", x, y, err)
             return None
         except Exception:  # pylint: disable=broad-exception-caught
             _logger.exception("Unexpected error getting window from point (%d, %d)", x, y)
@@ -163,7 +163,7 @@ class Win32API:
         try:
             left, top, right, bottom = win32gui.GetWindowRect(hwnd)
         except win32gui.error as err:
-            _logger.debug("Win32 error getting window bounds for hwnd %d: %s", hwnd, err)
+            _logger.warning("Win32 error getting window bounds for hwnd %d: %s", hwnd, err)
             return None
         except Exception:  # pylint: disable=broad-exception-caught
             _logger.exception("Unexpected error getting window bounds for hwnd %d", hwnd)
@@ -220,7 +220,7 @@ class Win32API:
 
             result = ctypes.windll.user32.PrintWindow(window_id, memdc.GetSafeHdc(), PW_RENDERFULLCONTENT)
             if not result:
-                _logger.debug("PrintWindow failed for hwnd %d, falling back to BitBlt", window_id)
+                _logger.warning("PrintWindow failed for hwnd %d, falling back to BitBlt", window_id)
                 memdc.BitBlt((0, 0), (width, height), dc, (0, 0), win32con.SRCCOPY)
 
             bits = bmp.GetBitmapBits(True)

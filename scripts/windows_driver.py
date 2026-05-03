@@ -69,7 +69,7 @@ class WindowsDriver:
             getattr(wrapper, action_name)(**kwargs)
             return True
         except Exception as e:  # pylint: disable=broad-exception-caught
-            _logger.debug("window action %s failed for window_id=%s: %s", action_name, window_id, e)
+            _logger.warning("window action %s failed for window_id=%s: %s", action_name, window_id, e)
             return False
 
     @staticmethod

@@ -880,7 +880,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         result = handler(args)
         return result
     except ValueError as e:
-        _logger.debug("validation error: %s", e)
+        _logger.warning("validation error: %s", e)
         emit(ActionResult(ok=False, code="VALIDATION_ERROR", message=str(e)).to_dict())
         return 1
     except Exception as e:  # pylint: disable=broad-exception-caught

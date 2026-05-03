@@ -154,10 +154,10 @@ class FindDriver:
                         )
                     )
                 except Exception as e:  # pylint: disable=broad-exception-caught
-                    _logger.debug("Error processing UIA descendant: %s", e)
+                    _logger.warning("Error processing UIA descendant: %s", e)
                     continue
         except Exception as e:  # pylint: disable=broad-exception-caught
-            _logger.debug("UIA traversal failed for window %d: %s", window_id, e)
+            _logger.warning("UIA traversal failed for window %d: %s", window_id, e)
 
         if not matches:
             matches = FindDriver._find_text_win32(window_id, text, exact)

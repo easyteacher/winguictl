@@ -34,7 +34,7 @@ python scripts\winguictl.py uia-control --window-id 12345 --element-id "OKButton
 
 #### Type text into a UIA input field
 ```powershell
-python scripts\winguictl.py uia-control --window-id 12345 --element-id "TextInput" set-text --text "Hello World"
+python scripts\winguictl.py uia-control --window-id 12345 --element-id "TextInput" set-text "Hello World"
 ```
 
 #### Click a Win32 control by its hwnd

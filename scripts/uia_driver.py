@@ -150,7 +150,7 @@ class UIADriver:
                 except TypeError:
                     return wrapper.child_window(automation_id=element_id, found_index=0).wrapper_object()
             except (ElementNotFoundError, PywinautoTimeoutError) as e:
-                _logger.debug("child_window search for auto_id=%s failed: %s", element_id, e)
+                _logger.warning("child_window search for auto_id=%s failed: %s", element_id, e)
             except Exception as e:  # pylint: disable=broad-exception-caught
                 _logger.debug("unexpected error in child_window search: %s", e)
 
@@ -214,7 +214,7 @@ class UIADriver:
                 wrapper.set_text(text)
                 return
             except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.debug("set_text failed on EditWrapper: %s", e)
+                _logger.warning("set_text failed on EditWrapper: %s", e)
         try:
             wrapper.iface_value.SetValue(text)
         except Exception as inner_e:  # pylint: disable=broad-exception-caught
@@ -327,7 +327,7 @@ class UIADriver:
                 if texts:
                     return texts
             except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.debug("texts() failed for UIA combobox: %s", e)
+                _logger.warning("texts() failed for UIA combobox: %s", e)
 
         return []
 
@@ -399,7 +399,7 @@ class UIADriver:
                 if idx >= 0:
                     return idx
             except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.debug("Win32 API CB_GETCURSEL failed for combobox: %s", e)
+                _logger.warning("Win32 API CB_GETCURSEL failed for combobox: %s", e)
 
         try:
             return wrapper.selected_index()

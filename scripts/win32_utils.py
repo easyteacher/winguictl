@@ -107,7 +107,7 @@ class Win32API:
         return is_minimized, is_maximized
 
     @staticmethod
-    def capture_window_bgra(window_id) -> Tuple[int, int, int, int, bytearray]:
+    def capture_window_bgra(window_id: int) -> Tuple[int, int, int, int, bytearray]:
         """Capture window screenshot, returning BGRA pixel data.
 
         Uses win32gui/win32ui to obtain the window DC and create a bitmap.
@@ -122,7 +122,7 @@ class Win32API:
         x, y = int(left), int(top)
         width, height = int(right - left), int(bottom - top)
         if width <= 0 or height <= 0:
-            raise RuntimeError("invalid window size: %sx%s" % (width, height))
+            raise RuntimeError(f"invalid window size: {width}x{height}")
 
         hdc_window = win32gui.GetWindowDC(hwnd)
         dc = win32ui.CreateDCFromHandle(hdc_window)
@@ -131,17 +131,18 @@ class Win32API:
         bmp.CreateCompatibleBitmap(dc, width, height)
         memdc.SelectObject(bmp)
 
-        result = ctypes.windll.user32.PrintWindow(hwnd, memdc.GetSafeHdc(), PW_RENDERFULLCONTENT)
-        if not result:
-            memdc.BitBlt((0, 0), (width, height), dc, (0, 0), win32con.SRCCOPY)
+        try:
+            result = ctypes.windll.user32.PrintWindow(hwnd, memdc.GetSafeHdc(), PW_RENDERFULLCONTENT)
+            if not result:
+                memdc.BitBlt((0, 0), (width, height), dc, (0, 0), win32con.SRCCOPY)
 
-        bits = bmp.GetBitmapBits(True)
-        data = bytearray(bits)
-
-        win32gui.DeleteObject(bmp.GetHandle())
-        memdc.DeleteDC()
-        dc.DeleteDC()
-        win32gui.ReleaseDC(hwnd, hdc_window)
+            bits = bmp.GetBitmapBits(True)
+            data = bytearray(bits)
+        finally:
+            win32gui.DeleteObject(bmp.GetHandle())
+            memdc.DeleteDC()
+            dc.DeleteDC()
+            win32gui.ReleaseDC(hwnd, hdc_window)
         return x, y, width, height, data
 
     @staticmethod
@@ -238,7 +239,7 @@ class Win32API:
         """Press and release a single virtual key. See VK_CODE_MAP for key names."""
         virtual_key = VK_CODE_MAP.get(key.lower())
         if virtual_key is None:
-            raise ValueError("unsupported key: %s" % key)
+            raise ValueError(f"unsupported key: {key}")
         win32api.keybd_event(virtual_key, 0, 0, 0)
         time.sleep(0.05)
         win32api.keybd_event(virtual_key, 0, win32con.KEYEVENTF_KEYUP, 0)
@@ -250,7 +251,7 @@ class Win32API:
         for key in keys:
             vk = VK_CODE_MAP.get(key.lower())
             if vk is None:
-                raise ValueError("unsupported key: %s" % key)
+                raise ValueError(f"unsupported key: {key}")
             virtual_keys.append(vk)
         for vk in virtual_keys:
             win32api.keybd_event(vk, 0, 0, 0)

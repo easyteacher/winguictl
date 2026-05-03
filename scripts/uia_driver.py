@@ -11,7 +11,7 @@ and combobox/list/tab/slider operations.
 Also provides snapshot functionality for UIA element trees.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from pywinauto import Desktop
 from pywinauto.uia_element_info import UIAElementInfo
@@ -22,12 +22,12 @@ from models import ElementFormatter
 class UIADriver:
 
     @staticmethod
-    def _get_uia_wrapper(window_id: str, element_id: str):
+    def _get_uia_wrapper(window_id: str, element_id: str) -> "HwndWrapper":
         """Find and return the UIA element wrapper based on element_id.
 
         Search strategy:
-        1. First try exact match by automation_id
-        2. Then try exact match by runtime_id
+        1. First try pywinauto's conditional search by automation_id
+        2. Then try exact match by runtime_id via descendant traversal
         3. Raise ValueError if not found
 
         Args:
@@ -43,10 +43,13 @@ class UIADriver:
         target_handle = int(window_id)
         desktop = Desktop(backend="uia")
         wrapper = desktop.window(handle=target_handle)
-        descendants = [wrapper] + list(wrapper.descendants())
 
-        def normalize(value: Optional[str]) -> str:
-            return (value or "").strip()
+        try:
+            candidate = wrapper.child_window(automation_id=element_id)
+            candidate.wait("ready", timeout=3)
+            return candidate
+        except Exception:
+            pass
 
         def get_runtime_id(info) -> Optional[str]:
             try:
@@ -58,11 +61,8 @@ class UIADriver:
                 pass
             return None
 
-        query = normalize(element_id)
-        for candidate in descendants:
-            info = candidate.element_info
-            if normalize(getattr(info, "automation_id", "")) == query:
-                return candidate
+        query = element_id.strip()
+        descendants = [wrapper] + list(wrapper.descendants())
         for candidate in descendants:
             info = candidate.element_info
             if get_runtime_id(info) == query:
@@ -168,7 +168,7 @@ class UIADriver:
             return False
 
     @staticmethod
-    def combo_select(window_id: str, element_id: str, item) -> None:
+    def combo_select(window_id: str, element_id: str, item: int | str) -> None:
         """Select an item in a UIA combobox."""
         UIADriver._get_uia_wrapper(window_id, element_id).select(item)
 
@@ -194,7 +194,7 @@ class UIADriver:
         return [item.window_text() for item in items]
 
     @staticmethod
-    def list_select(window_id: str, element_id: str, item) -> None:
+    def list_select(window_id: str, element_id: str, item: int | str) -> None:
         """Select an item in a UIA list."""
         UIADriver._get_uia_wrapper(window_id, element_id).get_item(item).select()
 
@@ -207,7 +207,7 @@ class UIADriver:
         return []
 
     @staticmethod
-    def tab_select(window_id: str, element_id: str, item) -> None:
+    def tab_select(window_id: str, element_id: str, item: int | str) -> None:
         """Select a UIA tab."""
         UIADriver._get_uia_wrapper(window_id, element_id).select(item)
 
@@ -253,7 +253,7 @@ class UIADriver:
         wrapper = desktop.window(handle=target_handle)
         lines: list[str] = []
 
-        def walk(element, level: int) -> None:
+        def walk(element: Any, level: int) -> None:
             info = element.element_info
             lines.append(ElementFormatter.format_uia(info, level))
             try:

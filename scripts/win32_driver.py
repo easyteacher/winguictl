@@ -161,11 +161,11 @@ class Win32Driver:
         lines: list[str] = []
         visited: set[int] = set()
 
-        for element in [wrapper] + list(wrapper.descendants()):
+        def walk(element, level: int) -> None:
             info = element.element_info
             hwnd = getattr(info, "handle", None) or 0
             if hwnd in visited:
-                continue
+                return
             visited.add(hwnd)
             text = (getattr(info, "name", "") or "").strip()
             if not text:
@@ -175,11 +175,9 @@ class Win32Driver:
             enabled = getattr(info, "enabled", True)
             control_id = getattr(info, "control_id", None)
             control_type = Win32Driver.infer_control_type(cls)
-            level = 0
-            parent = element.parent()
-            while parent is not None and parent != wrapper:
-                level += 1
-                parent = parent.parent()
             lines.append(ElementFormatter.format_hwnd(hwnd, text, cls, visible, enabled, control_id, level, control_type))
+            for child in element.children():
+                walk(child, level + 1)
 
+        walk(wrapper, 0)
         return "\n".join(lines)

@@ -51,7 +51,7 @@ class OCRDriver:
             result = wx_ocr.ocr(tmp_path)
             return result if isinstance(result, list) else []
         except Exception as e:
-            raise RuntimeError("WeChat OCR failed: %s" % e) from e
+            raise RuntimeError(f"WeChat OCR failed: {e}") from e
         finally:
             os.unlink(tmp_path)
 
@@ -87,12 +87,15 @@ class OCRDriver:
             window_id: Window handle string
             text: Text to find
             exact: Whether to match exactly (default is fuzzy match)
-            confidence_threshold: Confidence threshold (reserved parameter)
+            confidence_threshold: Minimum confidence threshold (0.0-1.0).
+                Note: wx_ocr does not provide confidence scores, so this parameter
+                is currently ignored. All matches are assigned a fixed confidence of 0.9.
 
         Returns:
             List of matching ElementInfo
         """
         results = OCRDriver._capture_and_ocr(window_id)
+        _ = confidence_threshold
         matches: list[ElementInfo] = []
         query = text.strip().casefold()
         for r in results:

@@ -45,7 +45,7 @@ VK_CODE_MAP = {
 }
 
 for _index in range(1, 13):
-    VK_CODE_MAP["f%s" % _index] = 0x6F + _index
+    VK_CODE_MAP[f"f{_index}"] = 0x6F + _index
 for _char in "abcdefghijklmnopqrstuvwxyz":
     VK_CODE_MAP[_char] = ord(_char.upper())
 for _digit in "0123456789":
@@ -63,7 +63,6 @@ WIN32_CONTROL_TYPE_MAP: dict[str, str] = {
     "ScrollBar": "ScrollBar",
     "ToolbarWindow32": "ToolBar",
     "ReBarWindow32": "ReBar",
-    "Toolbar": "ToolBar",
     "msctls_statusbar32": "StatusBar",
     "msctls_progress32": "ProgressBar",
     "SysListView32": "ListView",

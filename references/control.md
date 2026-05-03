@@ -31,7 +31,7 @@ python scripts\winguictl.py control --hwnd <hwnd> click
 python scripts\winguictl.py control --hwnd <hwnd> get-text
 
 # Set control text
-python scripts\winguictl.py control --hwnd <hwnd> set-text --text "New Text"
+python scripts\winguictl.py control --hwnd <hwnd> set-text "New Text"
 
 # Check/uncheck a checkbox or radio button
 python scripts\winguictl.py control --hwnd <hwnd> check

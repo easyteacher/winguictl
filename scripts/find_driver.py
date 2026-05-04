@@ -13,6 +13,7 @@ Provides multiple element finding strategies:
 
 import itertools
 import logging
+from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -38,6 +39,25 @@ def _format_runtime_id(runtime_id_raw: Any) -> Optional[str]:
     if not runtime_id_raw:
         return None
     return "-".join(str(x) for x in runtime_id_raw)
+
+
+def _check_duplicate_automation_ids(automation_ids: list[str]) -> Optional[str]:
+    """Check for duplicate automation_id values and return warning message if found.
+
+    Args:
+        automation_ids: List of automation_id values to check
+
+    Returns:
+        Warning message string if duplicates found, None otherwise
+    """
+    if not automation_ids:
+        return None
+    counter = Counter(automation_ids)
+    duplicates = [aid for aid, count in counter.items() if count > 1]
+    if not duplicates:
+        return None
+    dup_list = ", ".join(f'"{aid}"' for aid in duplicates)
+    return f"WARNING: Duplicate automation_id detected: {dup_list}. Prefer runtime_id for element identification."
 
 
 def _is_valid_rect(rect) -> bool:
@@ -231,6 +251,10 @@ class FindDriver:
         If the window's own name/control_type matches the filter, it will appear
         in results. This is intentional to support finding top-level window properties.
 
+            When duplicate automation_id values are detected, a warning is prepended
+            to the output. runtime_id is preferred for element identification as it
+            is guaranteed unique within a desktop session.
+
         Args:
             window_id: Window handle
             text: Text filter condition (optional)
@@ -284,6 +308,7 @@ class FindDriver:
         priority_results: list[ElementInfo] = []
         other_results: list[ElementInfo] = []
         seen_runtime_ids: set[str] = set()
+        automation_ids: list[str] = []
 
         for candidate in candidates:
             info = candidate.element_info
@@ -313,6 +338,8 @@ class FindDriver:
                 continue
 
             candidate_automation_id = normalize(getattr(info, "auto_id", None) or getattr(info, "automation_id", ""))
+            if candidate_automation_id:
+                automation_ids.append(candidate_automation_id)
             element_id = FindDriver._get_uia_element_id(info)
             control_id = getattr(info, "control_id", None)
             runtime_id = _format_runtime_id(getattr(info, "runtime_id", None))
@@ -352,7 +379,13 @@ class FindDriver:
                 priority_results.append(element_info)
 
         combined_results = priority_results + other_results
-        return "\n".join(ElementFormatter.format_element(r) for r in combined_results)
+        warning = _check_duplicate_automation_ids(automation_ids)
+        result_lines: list[str] = []
+        if warning:
+            result_lines.append(warning)
+
+        result_lines.extend(ElementFormatter.format_element(r) for r in combined_results)
+        return "\n".join(result_lines)
 
     @staticmethod
     def find_image(  # pylint: disable=too-many-locals

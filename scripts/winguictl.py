@@ -22,6 +22,7 @@ from output_utils import (
     emit_action,
     emit_action_result,
     generate_nonce,
+    build_error_context,
     unwrap_result,
     wrap_with_boundary,
 )
@@ -97,6 +98,7 @@ def _build_snapshot_parser(subparsers: argparse._SubParsersAction) -> None:
     uia = sp.add_parser("uia", help="Snapshot UIA tree of a window.")
     uia.add_argument("--skip-actions", action="store_true", help="Skip collecting supported actions (faster)")
     uia.add_argument("--skip-state", action="store_true", help="Skip collecting element state (faster)")
+    p.add_argument("--max-depth", type=int, default=None, help="Maximum tree depth to traverse (default: unlimited)")
     sp.add_parser("ocr", help="Snapshot OCR text regions of a window.")
 
 
@@ -267,13 +269,15 @@ def _build_uia_control_parser(subparsers: argparse._SubParsersAction) -> None:
     sp.add_parser("double-click", help="Double click the element.")
     sp.add_parser("right-click", help="Right click the element.")
     sp.add_parser("invoke", help="Invoke the element (for buttons, menu items).")
-    sp.add_parser("toggle", help="Toggle the element (for checkboxes).")
+    toggle = sp.add_parser("toggle", help="Toggle the element (for checkboxes).")
+    toggle.add_argument("--target-state", choices=["on", "off"], default=None, help="Target toggle state (idempotent: only toggles if current state differs)")
     sp.add_parser("get-toggle-state", help="Get toggle state (0=off, 1=on, 2=indeterminate).")
     sp.add_parser("get-text", help="Get element text.")
 
     set_text = sp.add_parser("set-text", help="Set text in edit control.")
     set_text.add_argument("text", nargs="?", default=None, help="Text to set.")
     set_text.add_argument("--text", dest="text_opt", default=None, help="Text to set (for compatibility, prefer positional argument).")
+    set_text.add_argument("--verify-change", action="store_true", help="Only set text if it differs from current value (idempotent)")
     sp.add_parser("set-focus", help="Set focus to the element.")
 
     type_keys = sp.add_parser("type-keys", help="Type keys to the element.")
@@ -478,14 +482,15 @@ def _handle_snapshot(args: argparse.Namespace) -> int:
         unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
 
         nonce = generate_nonce()
+        max_depth = getattr(args, "max_depth", None)
         match args.snapshot_command:
             case "hwnd":
-                content = Win32Driver.snapshot_hwnd_tree(args.window_id)
+                content = Win32Driver.snapshot_hwnd_tree(args.window_id, max_depth=max_depth)
                 print(wrap_with_boundary(content, nonce))
             case "uia":
                 skip_actions = getattr(args, "skip_actions", False)
                 skip_state = getattr(args, "skip_state", False)
-                content = UIADriver.snapshot_uia_tree(args.window_id, skip_actions=skip_actions, skip_state=skip_state)
+                content = UIADriver.snapshot_uia_tree(args.window_id, skip_actions=skip_actions, skip_state=skip_state, max_depth=max_depth)
                 print(wrap_with_boundary(content, nonce))
             case "ocr":
                 content = OCRDriver.snapshot_ocr(args.window_id)
@@ -550,7 +555,9 @@ def _handle_find(args: argparse.Namespace) -> int:
                 return 1
         return 0
     except Exception as e:  # pylint: disable=broad-exception-caught
-        emit_action(False, f"find_{args.find_command}", {"window_id": str(args.window_id), "error": str(e)})
+        error_data: dict = {"window_id": str(args.window_id), "error": str(e)}
+        error_data.update(build_error_context(args.window_id))
+        emit_action(False, f"find_{args.find_command}", error_data)
         return 1
 
 
@@ -876,7 +883,9 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                 return 1
         return 0
     except Exception as e:  # pylint: disable=broad-exception-caught
-        emit_action(False, args.action_command, {"window_id": str(args.window_id) if args.window_id else None, "error": str(e)})
+        error_data: dict = {"window_id": str(args.window_id) if args.window_id else None, "error": str(e)}
+        error_data.update(build_error_context(args.window_id))
+        emit_action(False, args.action_command, error_data)
         return 1
 
 
@@ -1008,15 +1017,42 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
         _emit(cmd, {"item": item})
         func(wid, eid, item)
 
+    def _handle_toggle_with_target_state() -> None:
+        target_state = getattr(args, "target_state", None)
+        if target_state is None:
+            UIADriver.toggle(wid, eid)
+            _emit("toggle", {})
+            return
+        current_state = UIADriver.get_toggle_state(wid, eid)
+        desired = 1 if target_state == "on" else 0
+        if current_state != desired:
+            UIADriver.toggle(wid, eid)
+            _emit("toggle", {"target_state": target_state, "previous_state": current_state, "toggled": True})
+        else:
+            _emit("toggle", {"target_state": target_state, "current_state": current_state, "toggled": False})
+
+    def _handle_set_text_with_verify() -> None:
+        text = args.text if args.text is not None else args.text_opt
+        verify_change = getattr(args, "verify_change", False)
+        if verify_change:
+            current_text = UIADriver.get_text(wid, eid)
+            if current_text == text:
+                _emit("set_text", {"text": text, "changed": False, "reason": "text already matches"})
+                return
+            _emit("set_text", {"text": text, "changed": True, "previous_text": current_text})
+        else:
+            _emit("set_text", {"text": text})
+        UIADriver.set_text(wid, eid, text)
+
     _uia_commands: dict[str, tuple[callable, str]] = {
         "click": (lambda: _no_args("click", UIADriver.click), "click"),
         "double-click": (lambda: _no_args("double_click", UIADriver.double_click), "double_click"),
         "right-click": (lambda: _no_args("right_click", UIADriver.right_click), "right_click"),
         "invoke": (lambda: _no_args("invoke", UIADriver.invoke), "invoke"),
-        "toggle": (lambda: _no_args("toggle", UIADriver.toggle), "toggle"),
+        "toggle": (_handle_toggle_with_target_state, "toggle"),
         "get-toggle-state": (lambda: _emit("get_toggle_state", {"state": UIADriver.get_toggle_state(wid, eid)}), "get_toggle_state"),
         "get-text": (lambda: _emit("get_text", {"text": UIADriver.get_text(wid, eid)}), "get_text"),
-        "set-text": (lambda: _with_text("set_text", UIADriver.set_text), "set_text"),
+        "set-text": (_handle_set_text_with_verify, "set_text"),
         "set-focus": (lambda: _no_args("set_focus", UIADriver.set_focus), "set_focus"),
         "type-keys": (lambda: _with_keys("type_keys", UIADriver.type_keys), "type_keys"),
         "select": (lambda: _no_args("select", UIADriver.select), "select"),
@@ -1095,7 +1131,9 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
             emit_action(False, cmd, {"window_id": str(wid), "element_id": eid, "error": f"unknown uia-control subcommand: {cmd}"})
             return 1
     except Exception as e:  # pylint: disable=broad-exception-caught
-        emit_action(False, args.uia_control_command, {"window_id": str(wid), "element_id": eid, "error": str(e)})
+        error_data: dict = {"window_id": str(wid), "element_id": eid, "error": str(e)}
+        error_data.update(build_error_context(wid))
+        emit_action(False, args.uia_control_command, error_data)
         return 1
     return 0
 

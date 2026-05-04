@@ -155,6 +155,31 @@ python scripts\winguictl.py uia-control --window-id <id> --element-id "Item1" is
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Check1" get-toggle-state
 ```
 
+### Toggle with Target State (Idempotent)
+
+Use `--target-state` to ensure the element reaches a specific state. If the element is already in the desired state, no toggle is performed. This prevents double-toggling when retrying operations.
+
+```powershell
+# Ensure checkbox is checked (only toggles if currently off)
+python scripts\winguictl.py uia-control --window-id <id> --element-id "Check1" toggle --target-state on
+
+# Ensure checkbox is unchecked (only toggles if currently on)
+python scripts\winguictl.py uia-control --window-id <id> --element-id "Check1" toggle --target-state off
+```
+
+The response includes `toggled: true/false` to indicate whether a toggle was actually performed.
+
+### Set Text with Verify Change (Idempotent)
+
+Use `--verify-change` to only set text if it differs from the current value. This prevents unnecessary re-entry and avoids triggering change events when the value is already correct.
+
+```powershell
+# Only set text if current value differs
+python scripts\winguictl.py uia-control --window-id <id> --element-id "Edit1" set-text "Hello" --verify-change
+```
+
+The response includes `changed: true/false` and `reason` to indicate whether the text was actually modified.
+
 ### Element ID Format
 
 - **automation_id**: String identifier, e.g. `"Button1"`, `"Edit1"`
@@ -191,10 +216,10 @@ python scripts\winguictl.py uia-control --window-id 12345 --element-id "SubmitBu
 | `get-text` | Get element text | `--window-id`, `--element-id` |
 | `get-value` | Get element value | `--window-id`, `--element-id` |
 | `set-value` | Set element value | `--window-id`, `--element-id`, `value` (positional) |
-| `set-text` | Set element text | `--window-id`, `--element-id`, `text` (positional) |
+| `set-text` | Set element text | `--window-id`, `--element-id`, `text` (positional), `--verify-change` (optional: only set if different) |
 | `set-focus` | Set focus to element | `--window-id`, `--element-id` |
 | `invoke` | Invoke element (buttons) | `--window-id`, `--element-id` |
-| `toggle` | Toggle element state | `--window-id`, `--element-id` |
+| `toggle` | Toggle element state | `--window-id`, `--element-id`, `--target-state` (optional: `on`/`off` for idempotent toggle) |
 | `get-toggle-state` | Get toggle state (0=off, 1=on, 2=indeterminate) | `--window-id`, `--element-id` |
 | `select` | Select element | `--window-id`, `--element-id` |
 | `is-selected` | Check if element is selected | `--window-id`, `--element-id` |

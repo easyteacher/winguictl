@@ -178,17 +178,22 @@ For relative coordinates, both start and end coordinates must be within the wind
   end coordinates (9999, 9999) are outside window bounds (0-499, 0-599)
   ```
 
-## Type Text
+## Keyboard Operations
+
+### Type Text
 
 ```powershell
 # Type text at current focus position
 python scripts\winguictl.py action --window-id <id> type --text "hello world"
 
+# Type text with embedded special keys (e.g., multi-line text)
+python scripts\winguictl.py action --window-id <id> type --text "first line{ENTER}second line{TAB}indented"
+
 # Preview text input
 python scripts\winguictl.py action --window-id <id> type --text "hello world" --dry-run
 ```
 
-### Execution Behavior
+#### Execution Behavior
 
 Before typing text, the command will:
 1. Focus the target window (bring it to foreground)
@@ -197,17 +202,17 @@ Before typing text, the command will:
 
 This ensures the window is active and the mouse is within the window bounds for proper text input.
 
-## Press Key
+### Press Key
 
 ```powershell
-# Press a single key
-python scripts\winguictl.py action --window-id <id> press-key --key enter
+# Press a single key (must use pywinauto-style braces)
+python scripts\winguictl.py action --window-id <id> press-key --key "{ENTER}"
 
 # Preview key press
-python scripts\winguictl.py action --window-id <id> press-key --key enter --dry-run
+python scripts\winguictl.py action --window-id <id> press-key --key "{ENTER}" --dry-run
 ```
 
-### Execution Behavior
+#### Execution Behavior
 
 Before pressing the key, the command will:
 1. Focus the target window (bring it to foreground)
@@ -216,32 +221,20 @@ Before pressing the key, the command will:
 
 This ensures the window is active and the mouse is within the window bounds for proper key input.
 
-### Supported Key Names
-
-| Key Category | Names |
-|---------|------|
-| Letter keys | `a` `b` `c` `d` `e` `f` `g` `h` `i` `j` `k` `l` `m` `n` `o` `p` `q` `r` `s` `t` `u` `v` `w` `x` `y` `z` |
-| Number keys | `0` `1` `2` `3` `4` `5` `6` `7` `8` `9` |
-| Function keys | `f1` `f2` `f3` `f4` `f5` `f6` `f7` `f8` `f9` `f10` `f11` `f12` |
-| Control keys | `backspace` `tab` `enter` `return` `shift` `ctrl` `control` `alt` `pause` `capslock` `esc` `escape` `space` |
-| Navigation keys | `pageup` `pagedown` `end` `home` `left` `up` `right` `down` |
-| Edit keys | `insert` `delete` `del` |
-| System keys | `meta` `win` `cmd` |
-
-## Hotkey
+### Hotkey
 
 ```powershell
-# Press a key chord (press in order, release in reverse order)
-python scripts\winguictl.py action --window-id <id> hotkey --keys ctrl a
+# Press a key chord using list format (press in order, release in reverse order)
+python scripts\winguictl.py action --window-id <id> hotkey --keys "{CTRL}" "{A}"
 
-# Multiple key chords
-python scripts\winguictl.py action --window-id <id> hotkey --keys ctrl shift s
+# Press a key chord using concatenated string format
+python scripts\winguictl.py action --window-id <id> hotkey --keys "{CTRL}{SHIFT}{A}"
 
 # Preview hotkey
-python scripts\winguictl.py action --window-id <id> hotkey --keys ctrl a --dry-run
+python scripts\winguictl.py action --window-id <id> hotkey --keys "{CTRL}" "{A}" --dry-run
 ```
 
-### Execution Behavior
+#### Execution Behavior
 
 Before executing the hotkey, the command will:
 1. Focus the target window (bring it to foreground)
@@ -250,18 +243,46 @@ Before executing the hotkey, the command will:
 
 This ensures the window is active and the mouse is within the window bounds for proper hotkey execution.
 
-### Common Hotkey Examples
+#### Common Hotkey Examples
 
 | Operation | Command |
 |------|------|
-| Select all | `hotkey --keys ctrl a` |
-| Copy | `hotkey --keys ctrl c` |
-| Paste | `hotkey --keys ctrl v` |
-| Cut | `hotkey --keys ctrl x` |
-| Undo | `hotkey --keys ctrl z` |
-| Save | `hotkey --keys ctrl s` |
-| Find | `hotkey --keys ctrl f` |
-| Close window | `hotkey --keys alt f4` |
+| Select all | `hotkey --keys "{CTRL}" "{A}"` or `hotkey --keys "{CTRL}{A}"` |
+| Copy | `hotkey --keys "{CTRL}" "{C}"` or `hotkey --keys "{CTRL}{C}"` |
+| Paste | `hotkey --keys "{CTRL}" "{V}"` or `hotkey --keys "{CTRL}{V}"` |
+| Cut | `hotkey --keys "{CTRL}" "{X}"` or `hotkey --keys "{CTRL}{X}"` |
+| Undo | `hotkey --keys "{CTRL}" "{Z}"` or `hotkey --keys "{CTRL}{Z}"` |
+| Save | `hotkey --keys "{CTRL}" "{S}"` or `hotkey --keys "{CTRL}{S}"` |
+| Find | `hotkey --keys "{CTRL}" "{F}"` or `hotkey --keys "{CTRL}{F}"` |
+| Close window | `hotkey --keys "{ALT}" "{F4}"` or `hotkey --keys "{ALT}{F4}"` |
+
+### Key Format Reference
+
+All keyboard commands use pywinauto-style braced key names: `"{ENTER}"`, `"{TAB}"`, `"{ESC}"`, etc.
+
+- `type`: Keys can be embedded within text: `"first line{ENTER}second line"`
+- `press-key`: Single key only: `"{ENTER}"`
+- `hotkey`: Multiple keys as list or concatenated string
+
+#### Example
+
+`"first line{ENTER}second line{ENTER}third line"` will type three lines of text.
+
+#### Note
+
+Text outside braces is typed as Unicode characters. Braces must be balanced — use `{{` and `}}` to type literal braces if needed.
+
+#### Supported Key Names
+
+| Key Category | Names |
+|---------|------|
+| Letter keys | `{a}` `{b}` `{c}` ... `{z}` |
+| Number keys | `{0}` `{1}` `{2}` ... `{9}` |
+| Function keys | `{f1}` `{f2}` ... `{f12}` |
+| Control keys | `{backspace}` `{tab}` `{enter}` `{return}` `{shift}` `{ctrl}` `{control}` `{alt}` `{pause}` `{capslock}` `{esc}` `{escape}` `{space}` |
+| Navigation keys | `{pageup}` `{pagedown}` `{end}` `{home}` `{left}` `{up}` `{right}` `{down}` |
+| Edit keys | `{insert}` `{delete}` `{del}` |
+| System keys | `{meta}` `{win}` `{cmd}` |
 
 ## Clear Text
 

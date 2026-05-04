@@ -18,7 +18,7 @@
 | [search.md](./search.md) | 搜索操作（联系人、群聊、聊天记录） |
 | [messages.md](./messages.md) | 消息操作 |
 | [contacts.md](./contacts.md) | 通讯录与联系人操作 |
-| [files.md](./files.md) | 文件操作 |
+| [files.md](./files.md) | 导出文件操作 |
 | [calls.md](./calls.md) | 语音与视频通话 |
 | [moments.md](./moments.md) | 朋友圈操作 |
 | [favorites.md](./favorites.md) | 收藏与笔记 |

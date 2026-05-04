@@ -1,5 +1,5 @@
 [MASTER]
-extension-pkg-allow-list=win32api,win32con,win32gui,win32ui,win32process,wx_ocr,PIL,pywinauto.windows.uia_defines
+extension-pkg-allow-list=win32api,win32con,win32gui,win32ui,win32process,wx_ocr,PIL,pywinauto.windows.uia_defines,pywintypes
 init-hook='import sys; sys.path.insert(0, "."); sys.path.insert(0, "scripts")'
 ignore=test_winguictl.py
 

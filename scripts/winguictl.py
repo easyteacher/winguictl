@@ -788,7 +788,7 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
         _emit(cmd, {"item": item})
         func(wid, eid, item)
 
-    _UIA_COMMANDS: dict[str, tuple[callable, str]] = {
+    _uia_commands: dict[str, tuple[callable, str]] = {
         "click": (lambda: _no_args("click", UIADriver.click), "click"),
         "double-click": (lambda: _no_args("double_click", UIADriver.double_click), "double_click"),
         "right-click": (lambda: _no_args("right_click", UIADriver.right_click), "right_click"),
@@ -821,7 +821,7 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
         "window-state": (lambda: _emit("window_state", {"state": UIADriver.window_state(wid, eid)}), "window_state"),
     }
 
-    _UIA_COMMANDS_WITH_ARGS: dict[str, callable] = {
+    _uia_commands_with_args: dict[str, callable] = {
         "scroll": lambda: (
             UIADriver.scroll(wid, eid, args.direction, args.amount, args.count),
             _emit("scroll", {"direction": args.direction, "amount": args.amount, "count": args.count})
@@ -867,10 +867,10 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
             return 0
 
         cmd = args.uia_control_command
-        if cmd in _UIA_COMMANDS:
-            _UIA_COMMANDS[cmd][0]()
-        elif cmd in _UIA_COMMANDS_WITH_ARGS:
-            _UIA_COMMANDS_WITH_ARGS[cmd]()
+        if cmd in _uia_commands:
+            _uia_commands[cmd][0]()
+        elif cmd in _uia_commands_with_args:
+            _uia_commands_with_args[cmd]()
         else:
             emit_action(False, cmd, {"window_id": str(wid), "element_id": eid, "error": f"unknown uia-control subcommand: {cmd}"})
             return 1

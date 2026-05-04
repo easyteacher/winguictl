@@ -17,7 +17,7 @@ import logging
 import time
 from ctypes import wintypes
 from pathlib import Path
-from typing import Optional
+
 
 import win32api
 import win32con

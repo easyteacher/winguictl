@@ -137,6 +137,7 @@ For more reliable automation, use this priority order:
 | Text-based UI elements | `find ocr` + `action click` |
 | Icon/image buttons | `find image` + `action click` |
 | Unknown element at known position | `action click --relative-x/y` |
+| Scrolling content into view | `action scroll --direction down --amount 3` |
 | Qt applications (Kate, Qt Creator) | Use `--skip-actions --skip-state` for faster UIA operations |
 
 ### Key Operating Rules

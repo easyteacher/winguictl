@@ -303,6 +303,49 @@ Before clearing text, the command will:
 
 This ensures the window is active and the mouse is within the window bounds for proper text clearing.
 
+## Scroll
+
+Send mouse wheel scroll events at the current mouse position.
+
+```powershell
+# Scroll down 3 notches
+python scripts\winguictl.py action --window-id <id> scroll --direction down --amount 3
+
+# Scroll up 1 notch (default)
+python scripts\winguictl.py action --window-id <id> scroll --direction up
+
+# Scroll right 2 notches
+python scripts\winguictl.py action --window-id <id> scroll --direction right --amount 2
+
+# Preview scroll operation
+python scripts\winguictl.py action --window-id <id> scroll --direction down --amount 3 --dry-run
+```
+
+### Execution Behavior
+
+Before scrolling, the command will:
+1. Focus the target window (bring it to foreground)
+2. Move the mouse cursor to the center of the window
+3. Send mouse wheel events in the specified direction
+
+This ensures the window is active and the mouse is within the window bounds for proper scroll delivery.
+
+### Scroll Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `--direction` | Scroll direction: `up`, `down`, `left`, `right` (required) |
+| `--amount` | Number of notches to scroll (default: 1) |
+| `--dry-run` | Preview mode, does not execute actual scroll |
+
+### Scroll vs Keyboard Page Keys
+
+Prefer `scroll` over `press-key` with `{PGDN}`/`{PGUP}` for scrolling:
+- `scroll` sends mouse wheel events, which work in any scrollable area
+- `{PGDN}`/`{PGUP}` only work when a text control has keyboard focus
+- `scroll` supports horizontal scrolling (`left`/`right`)
+- `scroll` allows fine-grained control via `--amount`
+
 ## Subcommand Summary
 
 | Subcommand | Description | Parameters |
@@ -314,3 +357,4 @@ This ensures the window is active and the mouse is within the window bounds for 
 | `press-key` | Press key | `--key`, `--dry-run` |
 | `hotkey` | Key chord | `--keys`, `--dry-run` |
 | `clear-text` | Clear text | `--dry-run` |
+| `scroll` | Mouse wheel scroll | `--direction`, `--amount`, `--dry-run` |

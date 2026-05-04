@@ -87,8 +87,12 @@ MOUSEEVENTF_MOVE = 0x0001
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
 MOUSEEVENTF_ABSOLUTE = 0x8000
+MOUSEEVENTF_WHEEL = 0x0800
+MOUSEEVENTF_HWHEEL = 0x01000
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_UNICODE = 0x0004
+
+WHEEL_DELTA = 120
 
 PW_RENDERFULLCONTENT = 0x00000002
 
@@ -355,6 +359,36 @@ class Win32API:
         sent = ctypes.windll.user32.SendInput(1, ctypes.byref(up_input), ctypes.sizeof(INPUT))
         if sent != 1:
             _logger.warning("SendDrag: Final SendInput (button up) failed")
+
+    @staticmethod
+    def send_scroll(direction: str, amount: int = 1) -> None:
+        """Send mouse wheel scroll events via SendInput.
+
+        Args:
+            direction: Scroll direction ("up", "down", "left", "right")
+            amount: Number of notches to scroll (default 1)
+
+        Raises:
+            ValueError: If direction is invalid
+        """
+        direction_lower = direction.strip().lower()
+        if direction_lower in ("up", "down"):
+            flag = MOUSEEVENTF_WHEEL
+            delta = WHEEL_DELTA if direction_lower == "up" else -WHEEL_DELTA
+        elif direction_lower in ("left", "right"):
+            flag = MOUSEEVENTF_HWHEEL
+            delta = -WHEEL_DELTA if direction_lower == "left" else WHEEL_DELTA
+        else:
+            raise ValueError(f"invalid scroll direction: {direction}, expected up/down/left/right")
+
+        for _ in range(amount):
+            scroll_input = INPUT()
+            scroll_input.type = INPUT_MOUSE
+            scroll_input.union.mi.mouseData = delta
+            scroll_input.union.mi.dwFlags = flag
+            sent = ctypes.windll.user32.SendInput(1, ctypes.byref(scroll_input), ctypes.sizeof(INPUT))
+            if sent != 1:
+                _logger.warning("SendScroll: SendInput failed for direction=%s", direction)
 
     @staticmethod
     def move_mouse_to_window_center(window_id: int) -> None:

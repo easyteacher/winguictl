@@ -179,6 +179,11 @@ def _build_action_parser(subparsers: argparse._SubParsersAction) -> None:
     clear_text = sp.add_parser("clear-text", help="Clear the currently focused text field.")
     clear_text.add_argument("--dry-run", action="store_true")
 
+    scroll = sp.add_parser("scroll", help="Send mouse wheel scroll events.")
+    scroll.add_argument("--direction", required=True, choices=["up", "down", "left", "right"], help="Scroll direction.")
+    scroll.add_argument("--amount", type=int, default=1, help="Number of notches to scroll (default: 1).")
+    scroll.add_argument("--dry-run", action="store_true")
+
 
 def _build_control_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the control subcommand parser (Win32 control operations)."""
@@ -728,6 +733,17 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                     Win32API.send_hotkey(["{CTRL}", "{A}"])
                     Win32API.send_press_key("{DELETE}")
                 emit_action_result("clear_text", args.dry_run, data)
+            case "scroll":
+                if args.window_id is None:
+                    raise ValueError("--window-id is required for scroll")
+                unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
+                window_title = Win32API.get_window_text(args.window_id)
+                data = {"window_id": str(args.window_id), "window_title": window_title, "direction": args.direction, "amount": args.amount}
+                if not args.dry_run:
+                    WindowsDriver.focus_window(args.window_id)
+                    Win32API.move_mouse_to_window_center(args.window_id)
+                    Win32API.send_scroll(args.direction, args.amount)
+                emit_action_result("scroll", args.dry_run, data)
             case _:
                 emit_action(False, args.action_command, {"window_id": str(args.window_id) if args.window_id else None, "error": f"unknown action subcommand: {args.action_command}"})
                 return 1

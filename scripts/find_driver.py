@@ -246,6 +246,8 @@ class FindDriver:
         automation_id: Optional[str] = None,
         action: Optional[str] = None,
         exact: bool = False,
+        skip_actions: bool = False,
+        skip_state: bool = False,
     ) -> str:
         """Find controls through the UIA tree.
 
@@ -267,6 +269,8 @@ class FindDriver:
             automation_id: Automation ID filter condition (optional)
             action: Supported action filter condition (optional, e.g. "set-text")
             exact: Whether to match exactly
+            skip_actions: If True, skip collecting supported actions (faster for Qt apps)
+            skip_state: If True, skip collecting element state (faster for Qt apps)
 
         Returns:
             Formatted matching result string with window-relative coordinates.
@@ -378,10 +382,10 @@ class FindDriver:
             seen_runtime_ids.add(runtime_id)
 
             from uia_driver import get_element_state, get_supported_actions
-            element_actions = get_supported_actions(info)
-            element_state = get_element_state(info)
+            element_actions = [] if skip_actions else get_supported_actions(info)
+            element_state = {} if skip_state else get_element_state(info)
 
-            if action is not None:
+            if action is not None and not skip_actions:
                 if action.casefold() not in (a.casefold() for a in element_actions):
                     continue
 

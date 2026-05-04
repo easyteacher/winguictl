@@ -710,12 +710,17 @@ class UIADriver:
         iface.Rotate(degrees)
 
     @staticmethod
-    def snapshot_uia_tree(window_id: int) -> str:
+    def snapshot_uia_tree(window_id: int, skip_actions: bool = False, skip_state: bool = False) -> str:
         """Generate a UIA element tree snapshot for the window.
 
         Iteratively traverses all UIA child elements of the target window using a stack,
         formatting each element's name, control type, class name, automation ID, etc.
         Uses a visited set to prevent infinite loops from buggy UIA providers.
+
+        Args:
+            window_id: Target window handle
+            skip_actions: If True, skip collecting supported actions (faster for Qt apps)
+            skip_state: If True, skip collecting element state (faster for Qt apps)
 
         Note:
             Uses iter_children() which yields children one at a time via TreeWalker.
@@ -758,8 +763,8 @@ class UIADriver:
             if automation_id:
                 automation_ids.append(automation_id)
 
-            actions = get_supported_actions(info)
-            elem_state = get_element_state(info)
+            actions = [] if skip_actions else get_supported_actions(info)
+            elem_state = {} if skip_state else get_element_state(info)
             lines.append(ElementFormatter.format_uia(info, level, win_x, win_y, supported_actions=actions, state=elem_state))
             try:
                 for child in element.iter_children():

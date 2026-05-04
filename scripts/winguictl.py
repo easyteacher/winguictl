@@ -85,7 +85,9 @@ def _build_snapshot_parser(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--window-id", type=int, required=True)
     sp = p.add_subparsers(dest="snapshot_command", required=True)
     sp.add_parser("hwnd", help="Snapshot HWND tree of a window.")
-    sp.add_parser("uia", help="Snapshot UIA tree of a window.")
+    uia = sp.add_parser("uia", help="Snapshot UIA tree of a window.")
+    uia.add_argument("--skip-actions", action="store_true", help="Skip collecting supported actions (faster)")
+    uia.add_argument("--skip-state", action="store_true", help="Skip collecting element state (faster)")
     sp.add_parser("ocr", help="Snapshot OCR text regions of a window.")
 
 
@@ -106,6 +108,8 @@ def _build_find_parser(subparsers: argparse._SubParsersAction) -> None:
     find_uia.add_argument("--automation-id", help="Filter by automation ID")
     find_uia.add_argument("--action", help="Filter by supported uia-control action (e.g. set-text, invoke)")
     find_uia.add_argument("--exact", action="store_true")
+    find_uia.add_argument("--skip-actions", action="store_true", help="Skip collecting supported actions (faster)")
+    find_uia.add_argument("--skip-state", action="store_true", help="Skip collecting element state (faster)")
 
     find_ocr = sp.add_parser("ocr", help="Find OCR text inside a window.")
     find_ocr.add_argument("text", help="Text to search for")
@@ -392,7 +396,9 @@ def _handle_snapshot(args: argparse.Namespace) -> int:
                 content = Win32Driver.snapshot_hwnd_tree(args.window_id)
                 print(wrap_with_boundary(content, nonce))
             case "uia":
-                content = UIADriver.snapshot_uia_tree(args.window_id)
+                skip_actions = getattr(args, "skip_actions", False)
+                skip_state = getattr(args, "skip_state", False)
+                content = UIADriver.snapshot_uia_tree(args.window_id, skip_actions=skip_actions, skip_state=skip_state)
                 print(wrap_with_boundary(content, nonce))
             case "ocr":
                 content = OCRDriver.snapshot_ocr(args.window_id)
@@ -421,6 +427,8 @@ def _handle_find(args: argparse.Namespace) -> int:
                 content = FindDriver.find_text(args.window_id, args.text, exact=args.exact)
                 print(wrap_with_boundary(content, nonce))
             case "uia":
+                skip_actions = getattr(args, "skip_actions", False)
+                skip_state = getattr(args, "skip_state", False)
                 content = FindDriver.find_uia(
                     args.window_id,
                     text=args.text,
@@ -429,6 +437,8 @@ def _handle_find(args: argparse.Namespace) -> int:
                     automation_id=args.automation_id,
                     action=args.action,
                     exact=args.exact,
+                    skip_actions=skip_actions,
+                    skip_state=skip_state,
                 )
                 print(wrap_with_boundary(content, nonce))
             case "ocr":

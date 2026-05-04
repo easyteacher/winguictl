@@ -84,15 +84,15 @@ python scripts\winguictl.py action --window-id <window_id> type --text "Hello Wo
 ### Press Key
 
 ```powershell
-python scripts\winguictl.py action --window-id <window_id> press-key --key Enter
-python scripts\winguictl.py action --window-id <window_id> press-key --key Escape
+python scripts\winguictl.py action --window-id <window_id> press-key --key "{ENTER}"
+python scripts\winguictl.py action --window-id <window_id> press-key --key "{ESC}"
 ```
 
 ### Hotkey
 
 ```powershell
-python scripts\winguictl.py action --window-id <window_id> hotkey --keys Ctrl S
-python scripts\winguictl.py action --window-id <window_id> hotkey --keys Ctrl A
+python scripts\winguictl.py action --window-id <window_id> hotkey --keys "{CTRL}" "{S}"
+python scripts\winguictl.py action --window-id <window_id> hotkey --keys "{CTRL}" "{A}"
 ```
 
 ### Click at Coordinates
@@ -440,7 +440,7 @@ python scripts\winguictl.py snapshot --window-id 4918678 uia
 python scripts\winguictl.py snapshot --window-id 4918678 hwnd
 
 # 7. Open Save dialog
-python scripts\winguictl.py action --window-id 4918678 hotkey --keys Ctrl S
+python scripts\winguictl.py action --window-id 4918678 hotkey --keys "{CTRL}" "{S}"
 
 # 8. Get Save dialog window ID
 python scripts\winguictl.py window list
@@ -455,7 +455,7 @@ python scripts\winguictl.py uia-control --window-id 3745666 --element-id "42-118
 python scripts\winguictl.py uia-control --window-id 3745666 --element-id "42-1189248" combo-select "GB18030"
 
 # 11. Close Save dialog
-python scripts\winguictl.py action --window-id 3745666 press-key --key Escape
+python scripts\winguictl.py action --window-id 3745666 press-key --key "{ESC}"
 
 # 12. Close Notepad
 python scripts\winguictl.py window --window-id 4918678 close
@@ -511,7 +511,7 @@ python scripts\winguictl.py window --window-id 12133502 close
 ### Window Close
 
 - `window close` may fail if the application shows a confirmation dialog
-- Use `action hotkey --keys Alt F4` as an alternative
+- Use `action hotkey --keys "{ALT}" "{F4}"` as an alternative
 - For force close, use PowerShell: `Stop-Process -Name Notepad -Force`
 
 ### Notepad Save Dialog

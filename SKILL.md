@@ -58,6 +58,7 @@ For detailed command documentation, see:
 - [Control](references/control.md) - Directly control specific controls (Win32 and UIA)
 - [Screenshot](references/screenshot.md) - Capture window screenshots
 - [Wait](references/wait.md) - Wait for conditions (window, text, element, image)
+- [Clipboard](references/clipboard.md) - Clipboard operations (copy files/text, get text)
 
 ## Application-Specific Guides
 

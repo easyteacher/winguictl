@@ -63,6 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
     _build_uia_control_parser(subparsers)
     _build_screenshot_parser(subparsers)
     _build_wait_parser(subparsers)
+    _build_clipboard_parser(subparsers)
 
     return parser
 
@@ -390,6 +391,20 @@ def _build_wait_parser(subparsers: argparse._SubParsersAction) -> None:
     image_cmd.add_argument("--timeout", type=float, default=30.0, help="Timeout in seconds (default: 30).")
     image_cmd.add_argument("--interval", type=int, default=500, help="Poll interval in milliseconds (default: 500).")
     image_cmd.add_argument("--disappear", action="store_true", help="Wait for image to disappear instead of appear.")
+
+
+def _build_clipboard_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Build the clipboard subcommand parser."""
+    p = subparsers.add_parser("clipboard", help="Clipboard operations.")
+    sp = p.add_subparsers(dest="clipboard_command", required=True)
+
+    copy_files = sp.add_parser("copy-files", help="Copy files to clipboard.")
+    copy_files.add_argument("files", nargs="+", help="File paths to copy to clipboard.")
+
+    copy_text = sp.add_parser("copy-text", help="Copy text to clipboard.")
+    copy_text.add_argument("text", help="Text to copy to clipboard.")
+
+    sp.add_parser("get-text", help="Get text from clipboard.")
 
 
 def _handle_window(args: argparse.Namespace) -> int:
@@ -974,8 +989,45 @@ def _handle_wait(args: argparse.Namespace) -> int:
     """Handle wait subcommands."""
     import time
 
-    from wait_utils import WaitUtils
+    from wait_utils import PollResult, WaitUtils
     from win32_utils import Win32API
+
+    def _format_window_info(info: dict) -> str:
+        """Format window info dict to ElementFormatter style output."""
+        formatter = ElementFormatter(
+            text=info.get("title", ""),
+            class_name=info.get("class_name"),
+            extra={
+                "window_id": info.get("window_id"),
+                "process": info.get("process"),
+                "pid": info.get("pid"),
+            },
+        )
+        return formatter.format()
+
+    def _handle_poll_result(
+        result: PollResult,
+        command_name: str,
+        disappear: bool,
+        timeout_sec: float,
+        extra_info: dict,
+        format_fn=None,
+    ) -> int:
+        """Handle poll result and emit appropriate action."""
+        if result.found:
+            if disappear:
+                emit_action(True, f"{command_name}_disappear", {**extra_info, "elapsed_ms": result.elapsed_ms})
+                return 0
+            if format_fn and result.data is not None:
+                nonce = generate_nonce()
+                if isinstance(result.data, list):
+                    content = "\n".join(format_fn(m) for m in result.data)
+                else:
+                    content = format_fn(result.data)
+                print(wrap_with_boundary(content, nonce))
+            return 0
+        emit_action(False, f"{command_name}_timeout", {**extra_info, "timeout_sec": timeout_sec, "disappear": disappear, "error": f"timeout waiting for {command_name} to {'disappear' if disappear else 'appear'}"})
+        return 1
 
     try:
         match args.wait_command:
@@ -986,150 +1038,155 @@ def _handle_wait(args: argparse.Namespace) -> int:
                 return 0
 
             case "window":
-                start_time = time.time()
-                timeout = args.timeout
-                interval = args.interval / 1000.0
-                found_info = None
-
-                while True:
-                    found_info = WaitUtils.check_window_exists(args.title, args.exact, args.class_name)
-                    if args.disappear:
-                        if found_info is None:
-                            emit_action(True, "window_disappear", {"title": args.title, "elapsed_ms": int((time.time() - start_time) * 1000)})
-                            return 0
-                    else:
-                        if found_info is not None:
-                            nonce = generate_nonce()
-                            content = f"- \"{found_info['title']}\" [window_id=\"{found_info['window_id']}\" class_name=\"{found_info['class_name']}\" process=\"{found_info['process']}\" pid=\"{found_info['pid']}\"]"
-                            print(wrap_with_boundary(content, nonce))
-                            return 0
-
-                    if time.time() - start_time >= timeout:
-                        break
-                    time.sleep(interval)
-
-                emit_action(False, "window_timeout", {"title": args.title, "timeout_sec": timeout, "disappear": args.disappear, "error": f"timeout waiting for window to {'disappear' if args.disappear else 'appear'}"})
-                return 1
+                result = WaitUtils.poll_condition(
+                    check_fn=lambda: WaitUtils.check_window_exists(args.title, args.exact, args.class_name),
+                    timeout_sec=args.timeout,
+                    interval_sec=args.interval / 1000.0,
+                    disappear=args.disappear,
+                )
+                return _handle_poll_result(
+                    result,
+                    "window",
+                    args.disappear,
+                    args.timeout,
+                    {"title": args.title},
+                    _format_window_info if not args.disappear else None,
+                )
 
             case "text":
                 if not args.window_id:
                     emit_action(False, "text", {"error": "--window-id is required for text subcommand"})
                     return 1
                 unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
-                start_time = time.time()
-                timeout = args.timeout
-                interval = args.interval / 1000.0
-
-                while True:
-                    result = WaitUtils.check_text_exists(args.window_id, args.text, args.exact)
-                    if args.disappear:
-                        if result is None:
-                            emit_action(True, "text_disappear", {"window_id": str(args.window_id), "text": args.text, "elapsed_ms": int((time.time() - start_time) * 1000)})
-                            return 0
-                    else:
-                        if result is not None:
-                            nonce = generate_nonce()
-                            print(wrap_with_boundary(result, nonce))
-                            return 0
-
-                    if time.time() - start_time >= timeout:
-                        break
-                    time.sleep(interval)
-
-                emit_action(False, "text_timeout", {"window_id": str(args.window_id), "text": args.text, "timeout_sec": timeout, "disappear": args.disappear, "error": f"timeout waiting for text to {'disappear' if args.disappear else 'appear'}"})
-                return 1
+                result = WaitUtils.poll_condition(
+                    check_fn=lambda: WaitUtils.check_text_exists(args.window_id, args.text, args.exact),
+                    timeout_sec=args.timeout,
+                    interval_sec=args.interval / 1000.0,
+                    disappear=args.disappear,
+                )
+                return _handle_poll_result(
+                    result,
+                    "text",
+                    args.disappear,
+                    args.timeout,
+                    {"window_id": str(args.window_id), "text": args.text},
+                    str if not args.disappear else None,
+                )
 
             case "uia":
                 if not args.window_id:
                     emit_action(False, "uia", {"error": "--window-id is required for uia subcommand"})
                     return 1
                 unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
-                start_time = time.time()
-                timeout = args.timeout
-                interval = args.interval / 1000.0
-
-                while True:
-                    result = WaitUtils.check_uia_exists(args.window_id, args.text, args.control_type, args.class_name, args.automation_id, args.exact)
-                    if args.disappear:
-                        if result is None:
-                            emit_action(True, "uia_disappear", {"window_id": str(args.window_id), "elapsed_ms": int((time.time() - start_time) * 1000)})
-                            return 0
-                    else:
-                        if result is not None:
-                            nonce = generate_nonce()
-                            print(wrap_with_boundary(result, nonce))
-                            return 0
-
-                    if time.time() - start_time >= timeout:
-                        break
-                    time.sleep(interval)
-
-                emit_action(False, "uia_timeout", {"window_id": str(args.window_id), "timeout_sec": timeout, "disappear": args.disappear, "error": f"timeout waiting for UIA element to {'disappear' if args.disappear else 'appear'}"})
-                return 1
+                uia_filter_info = {
+                    "text": args.text,
+                    "control_type": args.control_type,
+                    "class_name": args.class_name,
+                    "automation_id": args.automation_id,
+                    "exact": args.exact,
+                }
+                result = WaitUtils.poll_condition(
+                    check_fn=lambda: WaitUtils.check_uia_exists(args.window_id, args.text, args.control_type, args.class_name, args.automation_id, args.exact),
+                    timeout_sec=args.timeout,
+                    interval_sec=args.interval / 1000.0,
+                    disappear=args.disappear,
+                )
+                return _handle_poll_result(
+                    result,
+                    "uia",
+                    args.disappear,
+                    args.timeout,
+                    {"window_id": str(args.window_id), **uia_filter_info},
+                    str if not args.disappear else None,
+                )
 
             case "ocr":
                 if not args.window_id:
                     emit_action(False, "ocr", {"error": "--window-id is required for ocr subcommand"})
                     return 1
                 unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
-                start_time = time.time()
-                timeout = args.timeout
-                interval = args.interval / 1000.0
-
-                while True:
-                    matches = WaitUtils.check_ocr_exists(args.window_id, args.text, args.exact, args.confidence_threshold)
-                    if args.disappear:
-                        if not matches:
-                            emit_action(True, "ocr_disappear", {"window_id": str(args.window_id), "text": args.text, "elapsed_ms": int((time.time() - start_time) * 1000)})
-                            return 0
-                    else:
-                        if matches:
-                            nonce = generate_nonce()
-                            content = "\n".join(ElementFormatter.format_element(m) for m in matches)
-                            print(wrap_with_boundary(content, nonce))
-                            return 0
-
-                    if time.time() - start_time >= timeout:
-                        break
-                    time.sleep(interval)
-
-                emit_action(False, "ocr_timeout", {"window_id": str(args.window_id), "text": args.text, "timeout_sec": timeout, "disappear": args.disappear, "error": f"timeout waiting for OCR text to {'disappear' if args.disappear else 'appear'}"})
-                return 1
+                result = WaitUtils.poll_list_condition(
+                    check_fn=lambda: WaitUtils.check_ocr_exists(args.window_id, args.text, args.exact, args.confidence_threshold),
+                    timeout_sec=args.timeout,
+                    interval_sec=args.interval / 1000.0,
+                    disappear=args.disappear,
+                )
+                return _handle_poll_result(
+                    result,
+                    "ocr",
+                    args.disappear,
+                    args.timeout,
+                    {"window_id": str(args.window_id), "text": args.text},
+                    ElementFormatter.format_element if not args.disappear else None,
+                )
 
             case "image":
                 if not args.window_id:
                     emit_action(False, "image", {"error": "--window-id is required for image subcommand"})
                     return 1
                 unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
-                start_time = time.time()
-                timeout = args.timeout
-                interval = args.interval / 1000.0
-
-                while True:
-                    matches = WaitUtils.check_image_exists(args.window_id, args.image_path, args.threshold)
-                    if args.disappear:
-                        if not matches:
-                            emit_action(True, "image_disappear", {"window_id": str(args.window_id), "image_path": args.image_path, "elapsed_ms": int((time.time() - start_time) * 1000)})
-                            return 0
-                    else:
-                        if matches:
-                            nonce = generate_nonce()
-                            content = "\n".join(ElementFormatter.format_element(m) for m in matches)
-                            print(wrap_with_boundary(content, nonce))
-                            return 0
-
-                    if time.time() - start_time >= timeout:
-                        break
-                    time.sleep(interval)
-
-                emit_action(False, "image_timeout", {"window_id": str(args.window_id), "image_path": args.image_path, "timeout_sec": timeout, "disappear": args.disappear, "error": f"timeout waiting for image to {'disappear' if args.disappear else 'appear'}"})
-                return 1
+                result = WaitUtils.poll_list_condition(
+                    check_fn=lambda: WaitUtils.check_image_exists(args.window_id, args.image_path, args.threshold),
+                    timeout_sec=args.timeout,
+                    interval_sec=args.interval / 1000.0,
+                    disappear=args.disappear,
+                )
+                return _handle_poll_result(
+                    result,
+                    "image",
+                    args.disappear,
+                    args.timeout,
+                    {"window_id": str(args.window_id), "image_path": args.image_path},
+                    ElementFormatter.format_element if not args.disappear else None,
+                )
 
             case _:
                 emit_action(False, args.wait_command, {"error": f"unknown wait subcommand: {args.wait_command}"})
                 return 1
     except Exception as e:  # pylint: disable=broad-exception-caught
         emit_action(False, args.wait_command, {"error": str(e)})
+        return 1
+
+
+def _handle_clipboard(args: argparse.Namespace) -> int:
+    """Handle clipboard subcommands."""
+    from clipboard_driver import ClipboardDriver
+
+    try:
+        match args.clipboard_command:
+            case "copy-files":
+                success = ClipboardDriver.copy_files_to_clipboard(args.files)
+                if success:
+                    emit_action(True, "copy_files", {"files": args.files, "count": len(args.files)})
+                    return 0
+                else:
+                    emit_action(False, "copy_files", {"files": args.files, "error": "failed to copy files to clipboard"})
+                    return 1
+
+            case "copy-text":
+                success = ClipboardDriver.copy_text_to_clipboard(args.text)
+                if success:
+                    emit_action(True, "copy_text", {"text": args.text, "length": len(args.text)})
+                    return 0
+                else:
+                    emit_action(False, "copy_text", {"text": args.text, "error": "failed to copy text to clipboard"})
+                    return 1
+
+            case "get-text":
+                text = ClipboardDriver.get_text_from_clipboard()
+                if text is not None:
+                    nonce = generate_nonce()
+                    print(wrap_with_boundary(text, nonce))
+                    return 0
+                else:
+                    emit_action(False, "get_text", {"error": "no text in clipboard"})
+                    return 1
+
+            case _:
+                emit_action(False, args.clipboard_command, {"error": f"unknown clipboard subcommand: {args.clipboard_command}"})
+                return 1
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        emit_action(False, args.clipboard_command, {"error": str(e)})
         return 1
 
 
@@ -1159,6 +1216,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "uia-control": _handle_uia_control,
         "screenshot": _handle_screenshot,
         "wait": _handle_wait,
+        "clipboard": _handle_clipboard,
     }
     handler = handler_map.get(args.command)
     if handler is None:

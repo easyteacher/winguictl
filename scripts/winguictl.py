@@ -609,7 +609,8 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                         raise ValueError("--window-id is required for --element-id")
                     unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
                     window_title, bounds = resolve_window_context(args.window_id)
-                    wrapper = UIADriver._get_uia_wrapper(args.window_id, args.element_id)
+                    # Accessing protected member _get_uia_wrapper is intentional for UIA element resolution
+                    wrapper = UIADriver._get_uia_wrapper(args.window_id, args.element_id)  # pylint: disable=protected-access
                     element_info = wrapper.element_info
                     rect = getattr(element_info, "rectangle", None)
                     if rect is None or rect.right <= rect.left or rect.bottom <= rect.top:

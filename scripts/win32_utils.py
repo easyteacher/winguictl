@@ -374,22 +374,60 @@ class Win32API:
 
     @staticmethod
     def send_type_text(text: str) -> None:
-        """Type text character by character using Unicode keyboard events via SendInput."""
-        for ch in text:
-            code_point = ord(ch)
-            inputs = (INPUT * 2)()
-            inputs[0].type = INPUT_KEYBOARD
-            inputs[0].union.ki.wScan = code_point
-            inputs[0].union.ki.dwFlags = KEYEVENTF_UNICODE
-            inputs[1].type = INPUT_KEYBOARD
-            inputs[1].union.ki.wScan = code_point
-            inputs[1].union.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
-            ctypes.windll.user32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+        """Type text character by character using Unicode keyboard events via SendInput.
+
+        Supports embedded pywinauto-style special keys, e.g., "abc{ENTER}def".
+        Text outside braces is typed as Unicode; text inside braces is treated
+        as a virtual key name (see VK_CODE_MAP).
+        """
+        import re
+
+        # Split text into segments: plain text or {KEY} commands
+        # Pattern: either plain text (no braces) or {KEY} (non-empty, no nested braces)
+        segments = re.split(r"(\{[^{}]+\})", text)
+
+        for segment in segments:
+            if not segment:
+                continue
+            if segment.startswith("{") and segment.endswith("}"):
+                # Special key command
+                key_name = segment[1:-1]
+                virtual_key = VK_CODE_MAP.get(key_name.lower())
+                if virtual_key is None:
+                    raise ValueError(f"unsupported key in type text: {segment}")
+                inputs = (INPUT * 2)()
+                inputs[0].type = INPUT_KEYBOARD
+                inputs[0].union.ki.wVk = virtual_key
+                inputs[1].type = INPUT_KEYBOARD
+                inputs[1].union.ki.wVk = virtual_key
+                inputs[1].union.ki.dwFlags = KEYEVENTF_KEYUP
+                ctypes.windll.user32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+                time.sleep(DEFAULT_KEY_DELAY_MS / 1000)
+            else:
+                # Plain text, type as Unicode
+                for ch in segment:
+                    code_point = ord(ch)
+                    inputs = (INPUT * 2)()
+                    inputs[0].type = INPUT_KEYBOARD
+                    inputs[0].union.ki.wScan = code_point
+                    inputs[0].union.ki.dwFlags = KEYEVENTF_UNICODE
+                    inputs[1].type = INPUT_KEYBOARD
+                    inputs[1].union.ki.wScan = code_point
+                    inputs[1].union.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
+                    ctypes.windll.user32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(INPUT))
 
     @staticmethod
     def send_press_key(key: str) -> None:
-        """Press and release a single virtual key. See VK_CODE_MAP for key names."""
-        virtual_key = VK_CODE_MAP.get(key.lower())
+        """Press and release a single virtual key. Uses pywinauto-style braced key names.
+
+        Key must be wrapped in braces, e.g., "{ENTER}", "{ESC}", "{TAB}".
+        See VK_CODE_MAP for supported key names.
+        """
+        normalized_key = key.strip().lower()
+        if not (normalized_key.startswith("{") and normalized_key.endswith("}")):
+            raise ValueError(f"key must be wrapped in braces, e.g., '{{ENTER}}', got: {key}")
+        normalized_key = Win32API._normalize_key(key)
+        virtual_key = VK_CODE_MAP.get(normalized_key)
         if virtual_key is None:
             raise ValueError(f"unsupported key: {key}")
         inputs = (INPUT * 2)()
@@ -402,13 +440,45 @@ class Win32API:
         time.sleep(DEFAULT_KEY_DELAY_MS / 1000)
 
     @staticmethod
-    def send_hotkey(keys: list[str]) -> None:
-        """Press a key chord. Presses all keys in order, then releases in reverse order."""
+    def _normalize_key(key: str) -> str:
+        """Normalize a key string by stripping pywinauto-style braces if present."""
+        normalized = key.strip().lower()
+        if normalized.startswith("{") and normalized.endswith("}"):
+            normalized = normalized[1:-1]
+        return normalized
+
+    @staticmethod
+    def send_hotkey(keys: list[str] | str) -> None:
+        """Press a key chord. Presses all keys in order, then releases in reverse order.
+
+        Supports two calling conventions:
+        1. List of braced keys: ["{CTRL}", "{SHIFT}", "{A}"]
+        2. Concatenated braced keys: "{CTRL}{SHIFT}{A}"
+
+        All keys must use pywinauto-style braced key names.
+        See VK_CODE_MAP for supported key names.
+        """
+        import re
+
+        # Parse keys from either list or concatenated string
+        if isinstance(keys, str):
+            # Extract all {KEY} patterns from the string
+            parsed_keys = re.findall(r"\{([^{}]+)\}", keys)
+            if not parsed_keys:
+                raise ValueError(f"no valid braced keys found in: {keys}")
+        else:
+            parsed_keys = []
+            for key in keys:
+                normalized_key = key.strip().lower()
+                if not (normalized_key.startswith("{") and normalized_key.endswith("}")):
+                    raise ValueError(f"key must be wrapped in braces, e.g., '{{ENTER}}', got: {key}")
+                parsed_keys.append(normalized_key[1:-1])
+
         virtual_keys = []
-        for key in keys:
-            vk = VK_CODE_MAP.get(key.lower())
+        for key_name in parsed_keys:
+            vk = VK_CODE_MAP.get(key_name.lower())
             if vk is None:
-                raise ValueError(f"unsupported key: {key}")
+                raise ValueError(f"unsupported key: {{{key_name}}}")
             virtual_keys.append(vk)
 
         down_inputs = (INPUT * len(virtual_keys))()

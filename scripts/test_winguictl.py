@@ -310,5 +310,76 @@ class TestCLI:
         assert args.dry_run is True
 
 
+class TestWin32API:
+    """Tests for Win32API class."""
+
+    def test_send_hotkey_list_format(self):
+        """Test send_hotkey with list of braced keys."""
+        from win32_utils import Win32API
+        # Should not raise
+        Win32API.send_hotkey(["{CTRL}", "{A}"])
+
+    def test_send_hotkey_string_format(self):
+        """Test send_hotkey with concatenated braced keys."""
+        from win32_utils import Win32API
+        # Should not raise
+        Win32API.send_hotkey("{CTRL}{SHIFT}{A}")
+
+    def test_send_hotkey_single_key_string(self):
+        """Test send_hotkey with single braced key string."""
+        from win32_utils import Win32API
+        # Should not raise
+        Win32API.send_hotkey("{ENTER}")
+
+    def test_send_hotkey_invalid_string_no_braces(self):
+        """Test send_hotkey rejects string without braces."""
+        from win32_utils import Win32API
+        with pytest.raises(ValueError, match="no valid braced keys found"):
+            Win32API.send_hotkey("CTRL")
+
+    def test_send_hotkey_invalid_list_no_braces(self):
+        """Test send_hotkey rejects list with unbraced keys."""
+        from win32_utils import Win32API
+        with pytest.raises(ValueError, match="key must be wrapped in braces"):
+            Win32API.send_hotkey(["CTRL", "A"])
+
+    def test_send_hotkey_unsupported_key(self):
+        """Test send_hotkey rejects unsupported key."""
+        from win32_utils import Win32API
+        with pytest.raises(ValueError, match="unsupported key"):
+            Win32API.send_hotkey("{UNKNOWN_KEY}")
+
+    def test_send_press_key_requires_braces(self):
+        """Test send_press_key requires braced format."""
+        from win32_utils import Win32API
+        with pytest.raises(ValueError, match="key must be wrapped in braces"):
+            Win32API.send_press_key("ENTER")
+
+    def test_send_press_key_braced_format(self):
+        """Test send_press_key accepts braced format."""
+        from win32_utils import Win32API
+        # Should not raise
+        Win32API.send_press_key("{ENTER}")
+
+    def test_send_type_text_with_embedded_keys(self):
+        """Test send_type_text with embedded special keys."""
+        from win32_utils import Win32API
+        # Should not raise
+        Win32API.send_type_text("abc{ENTER}def{TAB}ghi")
+
+    def test_send_type_text_plain_text(self):
+        """Test send_type_text with plain text only."""
+        from win32_utils import Win32API
+        # Should not raise
+        Win32API.send_type_text("hello world")
+
+    def test_normalize_key_strips_braces(self):
+        """Test _normalize_key strips braces."""
+        from win32_utils import Win32API
+        assert Win32API._normalize_key("{ENTER}") == "enter"
+        assert Win32API._normalize_key("enter") == "enter"
+        assert Win32API._normalize_key("{CTRL}") == "ctrl"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

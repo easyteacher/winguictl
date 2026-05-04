@@ -650,8 +650,8 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                 if not args.dry_run:
                     WindowsDriver.focus_window(args.window_id)
                     Win32API.move_mouse_to_window_center(args.window_id)
-                    Win32API.send_hotkey(["ctrl", "a"])
-                    Win32API.send_press_key("delete")
+                    Win32API.send_hotkey(["{CTRL}", "{A}"])
+                    Win32API.send_press_key("{DELETE}")
                 emit_action_result("clear_text", args.dry_run, data)
             case _:
                 emit_action(False, args.action_command, {"window_id": str(args.window_id) if args.window_id else None, "error": f"unknown action subcommand: {args.action_command}"})

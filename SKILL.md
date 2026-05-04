@@ -57,6 +57,11 @@ For detailed command documentation, see:
 - [Action](references/action.md) - Execute interaction operations
 - [Control](references/control.md) - Directly control specific controls (Win32 and UIA)
 - [Screenshot](references/screenshot.md) - Capture window screenshots
+- [Wait](references/wait.md) - Wait for conditions (window, text, element, image)
+
+## Application-Specific Guides
+
+- [WeChat Automation Guide](assets/wechat/wechat.md) — Covers window management, messaging, contacts, file operations, voice/video calls, Moments, favorites, settings, auto-reply, and troubleshooting for WeChat 4.1.6+.
 
 ## Workflow & Best Practices
 

@@ -120,7 +120,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> type --text "你�
 ### 步骤4：发送消息
 
 ```powershell
-# 使用快捷键 Alt+S 发送（推荐）
+# 使用快捷键 Alt+S 发送（推荐，invoke无法正常发送消息）
 python scripts\winguictl.py action --window-id <wx_window_id> hotkey --keys "{ALT}" "{S}"
 
 ```
@@ -132,7 +132,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> hotkey --keys "{AL
 python scripts\winguictl.py wait text --window-id <wx_window_id> "你好，这是测试消息" --timeout 5
 ```
 
-**完整示例：向文件传输助手发送消息**
+#### 完整示例：向文件传输助手发送消息
 
 ```powershell
 # 1. 获取微信主窗口ID
@@ -166,7 +166,7 @@ python scripts\winguictl.py action --window-id 4399352 hotkey --keys "{ALT}" "{S
 python scripts\winguictl.py wait uia --window-id 4399352 --text "收到" --control-type ListItem --timeout 5
 ```
 
-**长文本处理（超过2000字）**：
+#### 长文本处理（超过2000字）
 
 ```powershell
 # 若消息超过2000字，需先转换为 txt 文件发送

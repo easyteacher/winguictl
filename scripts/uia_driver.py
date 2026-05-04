@@ -723,20 +723,25 @@ class UIADriver:
             maintain correct DFS visitation order without materializing the entire
             children list.
 
+            When duplicate automation_id values are detected, a warning is prepended
+            to the output. runtime_id is preferred for element identification as it
+            is guaranteed unique within a desktop session.
+
         Returns coordinates relative to the window (not screen absolute).
         """
+        from find_driver import _check_duplicate_automation_ids
         from win32_utils import Win32API
 
         desktop = _get_uia_desktop()
         wrapper = desktop.window(handle=window_id)
         lines: list[str] = []
 
-        # Get window position to convert screen coordinates to relative
         window_bounds = Win32API.get_window_bounds(window_id)
         win_x = window_bounds.x if window_bounds else 0
         win_y = window_bounds.y if window_bounds else 0
 
         visited: set[tuple[int, ...] | int] = set()
+        automation_ids: list[str] = []
         stack: deque[tuple[object, int]] = deque([(wrapper, 0)])
         while stack:
             element, level = stack.pop()
@@ -748,6 +753,10 @@ class UIADriver:
                 continue
             visited.add(elem_key)
 
+            automation_id = (getattr(info, "auto_id", None) or getattr(info, "automation_id", "") or "").strip()
+            if automation_id:
+                automation_ids.append(automation_id)
+
             actions = get_supported_actions(info)
             elem_state = get_element_state(info)
             lines.append(ElementFormatter.format_uia(info, level, win_x, win_y, supported_actions=actions, state=elem_state))
@@ -757,7 +766,13 @@ class UIADriver:
             except Exception:  # pylint: disable=broad-exception-caught
                 _logger.exception("iter_children() failed for element")
 
-        return "\n".join(lines)
+        result_lines: list[str] = []
+        warning = _check_duplicate_automation_ids(automation_ids)
+        if warning:
+            result_lines.append(warning)
+
+        result_lines.extend(lines)
+        return "\n".join(result_lines)
 
     @staticmethod
     def get_element_at_point(absolute_x: int, absolute_y: int) -> Optional[dict]:

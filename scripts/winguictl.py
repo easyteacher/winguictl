@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: Fushan Wen <qydwhotmail@gmail.com>
 # SPDX-License-Identifier: MIT
+# pylint: disable=too-many-lines,too-many-return-statements
 
 """winguictl - Windows desktop automation command-line tool.
 
@@ -1159,18 +1160,16 @@ def _handle_clipboard(args: argparse.Namespace) -> int:
                 if success:
                     emit_action(True, "copy_files", {"files": args.files, "count": len(args.files)})
                     return 0
-                else:
-                    emit_action(False, "copy_files", {"files": args.files, "error": "failed to copy files to clipboard"})
-                    return 1
+                emit_action(False, "copy_files", {"files": args.files, "error": "failed to copy files to clipboard"})
+                return 1
 
             case "copy-text":
                 success = ClipboardDriver.copy_text_to_clipboard(args.text)
                 if success:
                     emit_action(True, "copy_text", {"text": args.text, "length": len(args.text)})
                     return 0
-                else:
-                    emit_action(False, "copy_text", {"text": args.text, "error": "failed to copy text to clipboard"})
-                    return 1
+                emit_action(False, "copy_text", {"text": args.text, "error": "failed to copy text to clipboard"})
+                return 1
 
             case "get-text":
                 text = ClipboardDriver.get_text_from_clipboard()
@@ -1178,9 +1177,8 @@ def _handle_clipboard(args: argparse.Namespace) -> int:
                     nonce = generate_nonce()
                     print(wrap_with_boundary(text, nonce))
                     return 0
-                else:
-                    emit_action(False, "get_text", {"error": "no text in clipboard"})
-                    return 1
+                emit_action(False, "get_text", {"error": "no text in clipboard"})
+                return 1
 
             case _:
                 emit_action(False, args.clipboard_command, {"error": f"unknown clipboard subcommand: {args.clipboard_command}"})
@@ -1258,7 +1256,7 @@ def _preprocess_window_id(argv: list[str]) -> list[str]:
             window_id_value = argv[i + 1]
             window_id_indices_to_remove = [i, i + 1]
             break
-        elif arg.startswith("--window-id="):
+        if arg.startswith("--window-id="):
             window_id_value = arg.split("=", 1)[1]
             window_id_indices_to_remove = [i]
             break

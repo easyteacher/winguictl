@@ -9,7 +9,7 @@ Provides functions for clipboard operations:
 - Copy files to clipboard
 - Copy text to clipboard
 - Get text from clipboard
-"""
+"""  # pylint: disable=invalid-name
 
 import ctypes
 import logging
@@ -21,7 +21,7 @@ import win32clipboard
 _logger = logging.getLogger(__name__)
 
 
-class DROPFILES(ctypes.Structure):  # pylint: disable=invalid-name
+class DROPFILES(ctypes.Structure):  # pylint: disable=invalid-name,too-few-public-methods
     """DROPFILES structure for clipboard file operations."""
 
     _fields_ = [
@@ -31,6 +31,11 @@ class DROPFILES(ctypes.Structure):  # pylint: disable=invalid-name
         ("fNC", ctypes.c_int),
         ("fWide", ctypes.c_bool),
     ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.pFiles = ctypes.sizeof(DROPFILES)
+        self.fWide = True
 
 
 class ClipboardDriver:
@@ -55,8 +60,6 @@ class ClipboardDriver:
         data = files_str.encode("U16")[2:] + b"\0\0"
 
         p_dropfiles = DROPFILES()
-        p_dropfiles.pFiles = ctypes.sizeof(DROPFILES)
-        p_dropfiles.fWide = True
 
         try:
             win32clipboard.OpenClipboard()
@@ -66,7 +69,7 @@ class ClipboardDriver:
                 return True
             finally:
                 win32clipboard.CloseClipboard()
-        except pywintypes.error as e:
+        except pywintypes.error as e:  # pylint: disable=no-member
             _logger.exception("Failed to copy files to clipboard: %s", e)
             return False
 
@@ -92,7 +95,7 @@ class ClipboardDriver:
                 return True
             finally:
                 win32clipboard.CloseClipboard()
-        except pywintypes.error as e:
+        except pywintypes.error as e:  # pylint: disable=no-member
             _logger.exception("Failed to copy text to clipboard: %s", e)
             return False
 
@@ -112,6 +115,6 @@ class ClipboardDriver:
                 return None
             finally:
                 win32clipboard.CloseClipboard()
-        except pywintypes.error as e:
+        except pywintypes.error as e:  # pylint: disable=no-member
             _logger.exception("Failed to get text from clipboard: %s", e)
             return None

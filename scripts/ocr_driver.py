@@ -171,7 +171,7 @@ class OCRDriver:
                     element_id=f"ocr-{left}-{top}",
                     window_id=str(window_id),
                     text=candidate,
-                    bounds=Bounds(x=left, y=top, width=right - left, height=bottom - top),
+                    bounds=Bounds.from_ltrb(left, top, right, bottom),
                     source="ocr",
                     confidence=0.9,
                 )

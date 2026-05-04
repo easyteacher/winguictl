@@ -168,12 +168,7 @@ class Win32API:
         except Exception:  # pylint: disable=broad-exception-caught
             _logger.exception("Unexpected error getting window bounds for hwnd %d", hwnd)
             return None
-        return Bounds(
-            x=int(left),
-            y=int(top),
-            width=int(right - left),
-            height=int(bottom - top),
-        )
+        return Bounds.from_ltrb(left, top, right, bottom)
 
     @staticmethod
     def get_window_state(hwnd: int) -> tuple[bool, bool]:

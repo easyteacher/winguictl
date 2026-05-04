@@ -195,3 +195,61 @@ Usage pattern:
 - Use Markdown headings instead of code block comments for steps
 - Note sections should use separate markdown headings (`### Note`) instead of bold inline format (`- **Note**: `)
 
+---
+
+# Qt Application UIA Performance
+
+## Problem
+
+Qt applications (like Kate, Qt Creator) have significantly slower UIA performance compared to native Win32 applications. This is especially noticeable when interacting with modal dialogs (save dialogs, message boxes, etc.).
+
+### Root Causes
+
+1. **QAccessible::uniqueId bottleneck**: Qt's UIA provider calls `QAccessible::uniqueId()` for every element during tree traversal. This involves expensive QHash operations that can result in billions of internal lookups.
+
+2. **STA threading model**: Qt uses `ProviderOptions_UseComThreading` (STA model), requiring all UIA calls to execute on the UI thread. When a modal dialog is open, the UI thread is blocked in a nested event loop, causing delays.
+
+3. **Modal dialog event loop nesting**: `QDialog::exec()` creates a local event loop that blocks the main event loop. UIA calls must wait for the UI thread to process messages.
+
+4. **Qt accessibility bridge overhead**: Even for native system dialogs (#32770 class), Qt's accessibility bridge still processes elements, adding overhead.
+
+### Performance Comparison
+
+| Factor | Qt (Kate) | Win32 (Notepad) |
+|--------|-----------|-----------------|
+| UIA Provider | Custom implementation | System built-in |
+| Element ID generation | QAccessible::uniqueId (slow) | System generated (fast) |
+| Threading model | STA + COM Threading | Direct call |
+| Modal dialog | Nested event loop blocking | System handles |
+| Tree traversal | Requires QHash lookup | Direct access |
+
+### Solutions
+
+1. **Use `--skip-actions` and `--skip-state`**: These flags skip collecting supported actions and element state, avoiding expensive `PollForPotentialSupportedPatterns` COM calls.
+
+   ```bash
+   # Slow (default)
+   python winguictl.py snapshot --window-id 12345 uia
+   
+   # Fast (skip actions and state)
+   python winguictl.py snapshot --window-id 12345 uia --skip-actions --skip-state
+   ```
+
+2. **Use Win32 API for modal dialogs**: For Qt application modal dialogs, prefer Win32 control commands (`control` subcommand) over UIA commands.
+
+   ```bash
+   # Instead of UIA
+   python winguictl.py uia-control --window-id 12345 --automation-id "saveButton" click
+   
+   # Use Win32 control (faster for Qt modal dialogs)
+   python winguictl.py control --hwnd 12345 click
+   ```
+
+3. **Cache element IDs**: When possible, use `runtime_id` (preferred) or `hwnd` instead of `automation_id`, as automation_id may have duplicates in Qt apps.
+
+### Implementation Notes
+
+- The `--skip-actions` and `--skip-state` flags are available for both `snapshot uia` and `find uia` commands
+- When `--skip-actions` is used, the `--action` filter in `find uia` is ignored (no filtering by action)
+- These flags are especially useful for Qt applications but safe to use for any application when action/state information is not needed
+

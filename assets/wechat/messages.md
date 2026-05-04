@@ -31,10 +31,12 @@ python scripts\winguictl.py uia-control --window-id <wx_window_id> --element-id 
 python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <search_x> --relative-y <search_y>
 ```
 
-### 步骤5：等待搜索结果（sleep 1秒）
+### 步骤5：等待搜索结果
 
 ```powershell
-Start-Sleep -Seconds 1
+python scripts\winguictl.py wait sleep 1000
+# 或等待搜索结果出现
+python scripts\winguictl.py wait uia --window-id <wx_window_id> --text "好友备注名" --control-type ListItem --timeout 3
 ```
 
 ### 步骤6：点击第一个搜索结果（需先 find 定位）
@@ -79,40 +81,89 @@ python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x
 ## 3.2 发送文本消息
 
 > 前提：已打开好友聊天窗口
+> 参考：pyweixin 中 `Messages.send_messages_to_friend` 的实现
 
-### 步骤1：定位输入框（Edit 控件）
+### 步骤1：定位聊天输入框
+
+聊天输入框的特征：
+- `control_type="Edit"`
+- `class="mmui::ChatInputField"`
+- `automation_id="chat_input_field"`
 
 ```powershell
-python scripts\winguictl.py find --window-id <wx_window_id> uia --control-type Edit --action set-text
-# 或使用 OCR 找到输入框区域
+# 方式A：通过 automation_id 查找（推荐）
+python scripts\winguictl.py find --window-id <wx_window_id> uia --automation-id chat_input_field
+
+# 方式B：通过 class 查找
+python scripts\winguictl.py snapshot --window-id <wx_window_id> uia --class ChatInputField
+# 查找 class="mmui::ChatInputField" 的 Edit 控件，记录其 runtime_id
 ```
 
-### 步骤2：点击输入框
+### 步骤2：等待输入框可用
 
 ```powershell
+# 等待聊天输入框出现（通过 automation_id）
+python scripts\winguictl.py wait uia --window-id <wx_window_id> --automation-id chat_input_field --timeout 3
+```
+
+### 步骤3：设置消息内容
+
+```powershell
+# 方式A：使用 uia-control set-text（推荐）
+python scripts\winguictl.py uia-control --window-id <wx_window_id> --element-id <chat_input_runtime_id> set-text "你好，这是测试消息"
+
+# 方式B：先点击输入框，再输入
 python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <edit_x> --relative-y <edit_y>
-```
-
-### 步骤3：清除已有内容（若 clear=True）
-
-```powershell
-python scripts\winguictl.py action --window-id <wx_window_id> hotkey --keys "{CTRL}" "{A}"
-python scripts\winguictl.py action --window-id <wx_window_id> press-key --key "{DELETE}"
-```
-
-### 步骤4：输入消息内容
-
-```powershell
 python scripts\winguictl.py action --window-id <wx_window_id> type --text "你好，这是测试消息"
 ```
 
-### 步骤5：发送（Alt+S 或点击发送按钮）
+### 步骤4：发送消息
 
 ```powershell
+# 使用快捷键 Alt+S 发送（推荐）
 python scripts\winguictl.py action --window-id <wx_window_id> hotkey --keys "{ALT}" "{S}"
-# 或点击发送按钮
-python scripts\winguictl.py find --window-id <wx_window_id> uia --text "发送" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <send_btn_x> --relative-y <send_btn_y>
+
+```
+
+### 步骤5：等待消息发送完成
+
+```powershell
+# 等待消息出现在聊天记录中（OCR 方式）
+python scripts\winguictl.py wait text --window-id <wx_window_id> "你好，这是测试消息" --timeout 5
+```
+
+**完整示例：向文件传输助手发送消息**
+
+```powershell
+# 1. 获取微信主窗口ID
+python scripts\winguictl.py window list
+# 假设微信窗口ID为 4399352
+
+# 2. 聚焦微信窗口
+python scripts\winguictl.py window --window-id 4399352 focus
+
+# 3. 获取UIA快照，找到文件传输助手
+python scripts\winguictl.py snapshot --window-id 4399352 uia --skip-actions --skip-state
+# 找到 session_item_文件传输助手 的 runtime_id
+
+# 4. 点击文件传输助手打开聊天窗口
+python scripts\winguictl.py uia-control --window-id 4399352 --element-id <file_transfer_runtime_id> invoke
+
+# 5. 等待聊天输入框出现
+python scripts\winguictl.py wait uia --window-id 4399352 --automation-id chat_input_field --timeout 3
+
+# 6. 获取聊天输入框的 runtime_id
+python scripts\winguictl.py find --window-id 4399352 uia --automation-id chat_input_field
+# 假设 runtime_id 为 42-4399352-4--2147482732
+
+# 7. 设置消息内容
+python scripts\winguictl.py uia-control --window-id 4399352 --element-id "42-4399352-4--2147482732" set-text "收到"
+
+# 8. 发送消息
+python scripts\winguictl.py action --window-id 4399352 hotkey --keys "{ALT}" "{S}"
+
+# 9. 等待消息发送完成
+python scripts\winguictl.py wait uia --window-id 4399352 --text "收到" --control-type ListItem --timeout 5
 ```
 
 **长文本处理（超过2000字）**：
@@ -127,6 +178,11 @@ $longText | Out-File -FilePath $tempFile -Encoding UTF8
 # 将文件复制到剪贴板（需借助 Python 脚本或外部工具）
 # 然后粘贴到微信输入框
 python scripts\winguictl.py action --window-id <wx_window_id> hotkey --keys "{CTRL}" "{V}"
+
+# 等待文件加载
+python scripts\winguictl.py wait sleep 1000
+
+# 发送
 python scripts\winguictl.py action --window-id <wx_window_id> hotkey --keys "{ALT}" "{S}"
 ```
 
@@ -147,7 +203,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> hotkey --keys "{CT
 ### 步骤3：等待文件加载后发送
 
 ```powershell
-Start-Sleep -Seconds 1
+python scripts\winguictl.py wait sleep 1000
 python scripts\winguictl.py action --window-id <wx_window_id> hotkey --keys "{ALT}" "{S}"
 ```
 
@@ -184,7 +240,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x
 python scripts\winguictl.py action --window-id <wx_window_id> type --text "@"
 
 # 等待弹出成员选择框
-Start-Sleep -Seconds 0.5
+python scripts\winguictl.py wait sleep 500
 
 # 输入成员昵称筛选
 python scripts\winguictl.py action --window-id <wx_window_id> type --text "成员昵称"
@@ -220,7 +276,9 @@ python scripts\winguictl.py action --window-id <wx_window_id> press-key --key "{
 ### 步骤4：等待接龙窗口弹出，填写内容
 
 ```powershell
-Start-Sleep -Seconds 1
+python scripts\winguictl.py wait sleep 1000
+# 或等待接龙窗口出现
+python scripts\winguictl.py wait window "接龙" --timeout 3
 # 使用 snapshot 找到接龙窗口，填写主题、示例、描述等
 ```
 
@@ -241,7 +299,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x
 ### 步骤3：等待聊天记录窗口弹出
 
 ```powershell
-Start-Sleep -Seconds 1
+python scripts\winguictl.py wait uia --window-id <wx_window_id> --text "搜索" --control-type Edit --timeout 3
 ```
 
 ### 步骤4：使用 snapshot 或 find 遍历聊天记录列表
@@ -276,4 +334,25 @@ python scripts\winguictl.py snapshot --window-id <wx_window_id> ocr
 ```powershell
 python scripts\winguictl.py find --window-id <wx_window_id> ocr "[3条]"
 python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <msg_x> --relative-y <msg_y>
+```
+
+### 步骤4：等待新消息出现
+
+```powershell
+# 等待新消息提示出现（OCR 方式）
+python scripts\winguictl.py wait ocr --window-id <wx_window_id> "[1条]" --timeout 60
+
+# 等待新消息提示消失（表示已读）
+python scripts\winguictl.py wait ocr --window-id <wx_window_id> "[1条]" --disappear --timeout 5
+```
+
+## 3.9 等待消息发送完成
+
+```powershell
+# 发送消息后，等待输入框清空
+python scripts\winguictl.py action --window-id <wx_window_id> type --text "测试消息"
+python scripts\winguictl.py action --window-id <wx_window_id> hotkey --keys "{ALT}" "{S}"
+
+# 等待消息出现在聊天记录中
+python scripts\winguictl.py wait text --window-id <wx_window_id> "测试消息" --timeout 5
 ```

@@ -11,7 +11,7 @@
 - 先 snapshot 找到 Sidebar 中"微信"按钮的位置
   `python scripts\winguictl.py snapshot --window-id <wx_window_id> uia`
 - 找到 "微信" 或对应语言的 Button
-  `python scripts\winguictl.py --window-id <wx_window_id> uia --text "微信" --control-type Button`
+  `python scripts\winguictl.py find --window-id <wx_window_id> uia --text "微信" --control-type Button`
 - 使用 element-id 点击
   `python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <weixin_btn_element_id>`
 
@@ -85,8 +85,10 @@ python scripts\winguictl.py wait uia --window-id <wx_window_id> --automation-id 
 
 #### 聚集输入框
 
+> ⚠️ **注意**：`uia-control invoke` 对微信控件可能无效，推荐使用 `action click`。
+
 ```powershell
-python winguictl.py uia-control --window-id <wx_window_id> --element-id chat_input_field invoke
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id chat_input_field
 ```
 
 ### 步骤3：设置消息内容
@@ -146,8 +148,10 @@ python scripts\winguictl.py snapshot --window-id 4399352 uia --skip-actions --sk
 
 ##### 步骤4：点击文件传输助手打开聊天窗口
 
+> ⚠️ **注意**：`uia-control invoke` 对微信控件可能无效，推荐使用 `action click`。
+
 ```powershell
-python scripts\winguictl.py uia-control --window-id 4399352 --element-id <file_transfer_runtime_id> invoke
+python scripts\winguictl.py action --window-id 4399352 click --element-id <file_transfer_runtime_id>
 ```
 
 ##### 步骤5：等待聊天输入框出现
@@ -280,8 +284,7 @@ python scripts\winguictl.py snapshot --window-id <wx_window_id> uia --skip-actio
 
 ### 步骤1：打开聊天窗口
 
-```powershell
-```
+参见 [setup.md](./setup.md) 中的 [## 打开微信主窗口（重要，后续操作依赖微信主窗口）](./setup.md#打开微信主窗口重要后续操作依赖微信主窗口)
 
 ### 步骤2：找到"发语音"按钮并点击
 
@@ -337,8 +340,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> press-key --key "{
 
 ### 步骤1：打开群聊窗口
 
-```powershell
-```
+参见 [setup.md](./setup.md) 中的 [## 打开微信主窗口（重要，后续操作依赖微信主窗口）](./setup.md#打开微信主窗口重要后续操作依赖微信主窗口)，然后通过会话列表或搜索打开目标群聊。
 
 ### 步骤2：输入 #接龙
 
@@ -375,8 +377,7 @@ python scripts\winguictl.py wait window "接龙" --timeout 3
 
 ### 步骤1：打开好友聊天窗口
 
-```powershell
-```
+参见上方 [## 打开联系人/群聊聊天窗口](#打开联系人群聊聊天窗口) 打开目标好友的聊天窗口。
 
 ### 步骤2：点击右上角"聊天记录"按钮
 

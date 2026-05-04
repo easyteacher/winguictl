@@ -56,6 +56,7 @@ DEFAULT_HOTKEY_DELAY_MS = 50
 # ── UIA Driver Timeouts ──────────────────────────────────────────────
 DEFAULT_UIA_WAIT_TIMEOUT_SEC = 3
 DEFAULT_COMBOBOX_DROPDOWN_TIMEOUT_MS = 500
+DEFAULT_COMBOBOX_POLL_INTERVAL_MS = 50
 
 # ── Virtual Key Code Mapping ─────────────────────────────────────────
 # Key name (lowercase) → Win32 virtual key code, used for send_press_key / send_hotkey

@@ -12,10 +12,13 @@ This module contains data types for window information, element information, and
 # pylint: disable=unnecessary-ellipsis
 
 from dataclasses import asdict, dataclass, field
-from typing import TYPE_CHECKING, Any, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 if TYPE_CHECKING:
     from pywinauto.uia_element_info import UIAElementInfo
+
+T = TypeVar("T")
+E = TypeVar("E")
 
 
 @runtime_checkable
@@ -164,6 +167,106 @@ class Bounds:
 
 
 @dataclass
+class Rect:
+    """Rectangle with position and size (x, y, width, height).
+
+    Use this class instead of tuple[int, int, int, int] for clearer semantics.
+    Unlike tuple representation, this makes the meaning of each field explicit.
+    """
+
+    x: int
+    y: int
+    width: int
+    height: int
+
+    @classmethod
+    def from_bounds(cls, bounds: Bounds) -> "Rect":
+        """Create Rect from Bounds instance."""
+        return cls(x=bounds.x, y=bounds.y, width=bounds.width, height=bounds.height)
+
+    def to_bounds(self) -> Bounds:
+        """Convert to Bounds instance."""
+        return Bounds(x=self.x, y=self.y, width=self.width, height=self.height)
+
+    def to_tuple(self) -> tuple[int, int, int, int]:
+        """Convert to tuple (x, y, width, height)."""
+        return (self.x, self.y, self.width, self.height)
+
+
+class Ok(Generic[T]):
+    """Success result wrapper."""
+
+    __slots__ = ("_value",)
+
+    def __init__(self, value: T) -> None:
+        self._value = value
+
+    @property
+    def value(self) -> T:
+        """Get the success value."""
+        return self._value
+
+    @property
+    def is_ok(self) -> bool:
+        """Check if this is a success result."""
+        return True
+
+    @property
+    def is_err(self) -> bool:
+        """Check if this is an error result."""
+        return False
+
+    def unwrap(self) -> T:
+        """Get the value or raise if error."""
+        return self._value
+
+
+class Err(Generic[E]):
+    """Error result wrapper."""
+
+    __slots__ = ("_error",)
+
+    def __init__(self, error: E) -> None:
+        self._error = error
+
+    @property
+    def error(self) -> E:
+        """Get the error value."""
+        return self._error
+
+    @property
+    def is_ok(self) -> bool:
+        """Check if this is a success result."""
+        return False
+
+    @property
+    def is_err(self) -> bool:
+        """Check if this is an error result."""
+        return True
+
+    def unwrap(self) -> None:
+        """Raise the error."""
+        raise RuntimeError(f"Called unwrap on Err: {self._error}")
+
+
+Result = Ok[T] | Err[E]
+"""Result type representing either success (Ok) or failure (Err).
+
+Usage:
+    def divide(a: int, b: int) -> Result[float, str]:
+        if b == 0:
+            return Err("division by zero")
+        return Ok(a / b)
+
+    result = divide(10, 2)
+    if result.is_ok:
+        print(result.value)  # 5.0
+    else:
+        print(result.error)  # error message
+"""
+
+
+@dataclass
 class WindowInfo:
     """Window information."""
 
@@ -251,10 +354,26 @@ class ActionResult:
 
 @dataclass
 class ElementFormatter:
-    """Element formatter."""
+    """Element formatter.
+
+    Attributes:
+        text: Element text content
+        rect: Rectangle with position and size (x, y, width, height).
+              Can be a Rect object or tuple[int, int, int, int].
+              Use Rect class for clearer semantics in new code.
+        rect_is_absolute: Whether rect coordinates are absolute screen coordinates
+        control_type: UIA control type (e.g., "Button", "Edit")
+        class_name: Win32 window class name
+        automation_id: UIA automation ID
+        hwnd: Win32 window handle
+        visible: Whether element is visible
+        enabled: Whether element is enabled
+        confidence: Match confidence (0.0-1.0) for OCR/image matching
+        extra: Additional key-value pairs to include in output
+    """
 
     text: str
-    rect: Optional[tuple[int, int, int, int]] = None
+    rect: Optional[Rect | tuple[int, int, int, int]] = None
     rect_is_absolute: bool = False
     control_type: Optional[str] = None
     class_name: Optional[str] = None
@@ -292,7 +411,10 @@ class ElementFormatter:
             parts.append(f"confidence={self.confidence:.2f}")
 
         if self.rect is not None:
-            x, y, w, h = self.rect
+            if isinstance(self.rect, Rect):
+                x, y, w, h = self.rect.x, self.rect.y, self.rect.width, self.rect.height
+            else:
+                x, y, w, h = self.rect
             rect_key = "absolute_rect" if self.rect_is_absolute else "relative_rect"
             parts.append(f"{rect_key}=({x},{y} {w}x{h})")
 

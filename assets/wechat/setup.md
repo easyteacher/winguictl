@@ -9,31 +9,15 @@
 
 ---
 
-## 1.1 环境要求
+## 1.1 打开微信主窗口（重要，后续操作依赖微信主窗口）
 
-- Python 3.9+
-- 安装依赖：`pip install pywinauto pyautogui psutil pycaw sounddevice soundfile packaging`
-- 微信 4.0 版本已安装并登录
-- 微信语言可在 `pyweixin` 中自动检测，若检测失败需手动设置
+即使微信已打开，也需要执行此步骤，确保窗口可见。
 
-## 1.2 全局配置参数
+```powershell
+Start-Process "C:\Program Files (x86)\Tencent\Weixin\Weixin.exe" --scene=taskbarpins
+```
 
-`pyweixin` 中 `GlobalConfig` 的全局参数，在 `winguictl` 中需通过命令组合实现：
-
-| 配置项 | 含义 | 默认值 | 对应操作 |
-|--------|------|--------|----------|
-| `is_maximize` | 微信主界面是否全屏 | `False` | `winguictl.py window --window-id <id> maximize` |
-| `close_weixin` | 任务结束后是否关闭微信 | `True` | `winguictl.py window --window-id <id> close` |
-| `load_delay` | 小程序/视频号/公众号加载时长 | `3.5` | 命令间 `Start-Sleep -Seconds 3.5` |
-| `search_pages` | 会话列表查找好友时滚动次数 | `5` | 循环执行 `press-key --key "{PGDN}"` |
-| `window_maximize` | 独立窗口是否全屏 | `False` | `winguictl.py window --window-id <id> maximize` |
-| `send_delay` | 发送消息间隔 | `0.2` | 命令间 `Start-Sleep -Milliseconds 200` |
-| `audio_length` | 语音长度限制 | `60` | 音频预处理参数 |
-| `clear` | 发送前是否清除已有内容 | `True` | `hotkey --keys "{CTRL}" "{A}"` + `press-key --key "{DELETE}"` |
-| `language` | 微信当前语言 | 自动检测 | 需根据语言调整查找文本 |
-| `Version` | 微信版本 | 自动检测 | 影响部分 UI 定位逻辑 |
-
-## 1.3 微信窗口特征
+## 1.2 微信窗口特征
 
 微信主窗口的 UIA 特征：
 - `class_name`: `mmui::MainWindow`

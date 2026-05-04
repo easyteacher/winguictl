@@ -53,7 +53,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x
 ### 步骤3：滚动浏览
 
 ```powershell
-python scripts\winguictl.py action --window-id <moments_window_id> press-key --key "{PGDN}"
+python scripts\winguictl.py action --window-id <moments_window_id> scroll --direction down --amount 3
 ```
 
 ## 7.4 点赞/评论朋友圈

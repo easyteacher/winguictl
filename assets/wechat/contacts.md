@@ -33,7 +33,7 @@ python scripts\winguictl.py find --window-id <wx_window_id> uia --control-type L
 ### 步骤4：滚动加载更多好友
 
 ```powershell
-python scripts\winguictl.py action --window-id <wx_window_id> press-key --key "{PGDN}"
+python scripts\winguictl.py action --window-id <wx_window_id> scroll --direction down --amount 3
 ```
 
 ## 4.3 获取好友个人资料

@@ -12,7 +12,7 @@
 python scripts\winguictl.py window --window-id <wx_window_id> focus
 ```
 
-### 步骤2：点击顶部搜索框（需先 snapshot 获取搜索框坐标）
+### 步骤2：获取顶部搜索框
 
 ```powershell
 python scripts\winguictl.py snapshot --window-id <wx_window_id> uia
@@ -66,8 +66,8 @@ python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x
 ### 步骤3：在会话列表中滚动查找好友
 
 ```powershell
-# 获取会话列表区域，使用 PGDN 滚动
-python scripts\winguictl.py action --window-id <wx_window_id> press-key --key "{PGDN}"
+# 获取会话列表区域，使用滚轮向下滚动
+python scripts\winguictl.py action --window-id <wx_window_id> scroll --direction down --amount 3
 # 每次滚动后使用 find ocr 或 snapshot 检查是否出现目标好友
 ```
 
@@ -311,7 +311,7 @@ python scripts\winguictl.py snapshot --window-id <history_window_id> uia
 ### 步骤5：滚动加载更多记录
 
 ```powershell
-python scripts\winguictl.py action --window-id <history_window_id> press-key --key "{PGDN}"
+python scripts\winguictl.py action --window-id <history_window_id> scroll --direction down --amount 3
 ```
 
 ## 3.8 检查新消息

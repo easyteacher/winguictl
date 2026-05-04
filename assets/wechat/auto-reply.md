@@ -7,7 +7,8 @@
 ### 步骤1：打开独立聊天窗口（双击会话列表中的好友）
 
 ```powershell
-python scripts\winguictl.py action --window-id <wx_window_id> double-click --relative-x <friend_x> --relative-y <friend_y>
+python scripts\winguictl.py find --window-id <wx_window_id> uia --text "好友备注名" --control-type ListItem
+python scripts\winguictl.py action --window-id <wx_window_id> double-click --element-id <friend_element_id>
 ```
 
 ### 步骤2：获取独立聊天窗口 ID

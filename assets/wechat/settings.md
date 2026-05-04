@@ -7,9 +7,9 @@
 ```powershell
 # 点击"更多" -> "设置"
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "更多" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <more_x> --relative-y <more_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <more_element_id>
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "设置" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <settings_x> --relative-y <settings_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <settings_element_id>
 
 # 等待设置窗口弹出
 Start-Sleep -Seconds 1.5
@@ -26,7 +26,7 @@ Start-Sleep -Seconds 1.5
 
 ```powershell
 python scripts\winguictl.py find --window-id <settings_window_id> uia --text "通用" --control-type Button
-python scripts\winguictl.py action --window-id <settings_window_id> click --relative-x <general_x> --relative-y <general_y>
+python scripts\winguictl.py action --window-id <settings_window_id> click --element-id <general_element_id>
 ```
 
 ### 步骤3：点击外观/主题设置按钮
@@ -34,7 +34,7 @@ python scripts\winguictl.py action --window-id <settings_window_id> click --rela
 ```powershell
 python scripts\winguictl.py find --window-id <settings_window_id> uia --text "跟随系统" --control-type Text
 # 点击其父元素中的按钮
-python scripts\winguictl.py action --window-id <settings_window_id> click --relative-x <theme_btn_x> --relative-y <theme_btn_y>
+python scripts\winguictl.py action --window-id <settings_window_id> click --element-id <theme_btn_element_id>
 ```
 
 ### 步骤4：使用键盘选择主题
@@ -58,7 +58,7 @@ python scripts\winguictl.py action --window-id <settings_window_id> press-key --
 
 ```powershell
 python scripts\winguictl.py find --window-id <settings_window_id> uia --text "简体中文" --control-type Text
-python scripts\winguictl.py action --window-id <settings_window_id> click --relative-x <lang_btn_x> --relative-y <lang_btn_y>
+python scripts\winguictl.py action --window-id <settings_window_id> click --element-id <lang_btn_element_id>
 ```
 
 ### 步骤3：使用键盘选择语言
@@ -75,7 +75,7 @@ python scripts\winguictl.py action --window-id <settings_window_id> press-key --
 
 ```powershell
 python scripts\winguictl.py find --window-id <settings_window_id> uia --text "确定" --control-type Button
-python scripts\winguictl.py action --window-id <settings_window_id> click --relative-x <confirm_x> --relative-y <confirm_y>
+python scripts\winguictl.py action --window-id <settings_window_id> click --element-id <confirm_element_id>
 ```
 
 ## 修改自动下载文件大小
@@ -95,7 +95,7 @@ python scripts\winguictl.py snapshot --window-id <settings_window_id> uia
 
 ```powershell
 python scripts\winguictl.py find --window-id <settings_window_id> uia --control-type Edit
-python scripts\winguictl.py action --window-id <settings_window_id> click --relative-x <size_edit_x> --relative-y <size_edit_y>
+python scripts\winguictl.py action --window-id <settings_window_id> click --element-id <size_edit_element_id>
 python scripts\winguictl.py action --window-id <settings_window_id> hotkey --keys "{CTRL}" "{A}"
 python scripts\winguictl.py action --window-id <settings_window_id> press-key --key "{DELETE}"
 python scripts\winguictl.py action --window-id <settings_window_id> type --text "1024"
@@ -107,19 +107,19 @@ python scripts\winguictl.py action --window-id <settings_window_id> type --text 
 
 ```powershell
 python scripts\winguictl.py find --window-id <settings_window_id> uia --text "账号设置" --control-type Button
-python scripts\winguictl.py action --window-id <settings_window_id> click --relative-x <account_x> --relative-y <account_y>
+python scripts\winguictl.py action --window-id <settings_window_id> click --element-id <account_element_id>
 ```
 
 ### 步骤2：点击"退出登录"
 
 ```powershell
 python scripts\winguictl.py find --window-id <settings_window_id> uia --text "退出登录" --control-type Button
-python scripts\winguictl.py action --window-id <settings_window_id> click --relative-x <logout_x> --relative-y <logout_y>
+python scripts\winguictl.py action --window-id <settings_window_id> click --element-id <logout_element_id>
 ```
 
 ### 步骤3：确认
 
 ```powershell
 python scripts\winguictl.py find --window-id <settings_window_id> uia --text "确定" --control-type Button
-python scripts\winguictl.py action --window-id <settings_window_id> click --relative-x <confirm_x> --relative-y <confirm_y>
+python scripts\winguictl.py action --window-id <settings_window_id> click --element-id <confirm_element_id>
 ```

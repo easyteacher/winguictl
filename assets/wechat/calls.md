@@ -13,7 +13,7 @@
 
 ```powershell
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "语音聊天" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <voice_btn_x> --relative-y <voice_btn_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <voice_btn_element_id>
 ```
 
 ### 微信 4.1.8+ 版本语音和视频按钮合并
@@ -48,7 +48,7 @@ python scripts\winguictl.py window --window-id <voip_window_id> focus
 
 ```powershell
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "语音聊天" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <call_btn_x> --relative-y <call_btn_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <call_btn_element_id>
 ```
 
 ### 4.1.8+ 版本按两次 Down + Enter 选择视频
@@ -65,12 +65,12 @@ python scripts\winguictl.py action --window-id <wx_window_id> press-key --key "{
 
 ```powershell
 python scripts\winguictl.py find --window-id <voip_window_id> uia --text "接听" --control-type Button
-python scripts\winguictl.py action --window-id <voip_window_id> click --relative-x <answer_x> --relative-y <answer_y>
+python scripts\winguictl.py action --window-id <voip_window_id> click --element-id <answer_element_id>
 ```
 
 ### 挂断
 
 ```powershell
 python scripts\winguictl.py find --window-id <voip_window_id> uia --text "拒绝" --control-type Button
-python scripts\winguictl.py action --window-id <voip_window_id> click --relative-x <decline_x> --relative-y <decline_y>
+python scripts\winguictl.py action --window-id <voip_window_id> click --element-id <decline_element_id>
 ```

@@ -7,7 +7,7 @@
 ```powershell
 # 点击左侧"朋友圈"按钮
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "朋友圈" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <moments_x> --relative-y <moments_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <moments_element_id>
 
 # 等待加载
 Start-Sleep -Seconds 2
@@ -19,7 +19,7 @@ Start-Sleep -Seconds 2
 
 ```powershell
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "发表" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <post_x> --relative-y <post_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <post_element_id>
 ```
 
 ### 步骤2：输入文本内容
@@ -33,7 +33,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> type --text "今�
 
 ```powershell
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "发表" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <post_btn_x> --relative-y <post_btn_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <post_btn_element_id>
 ```
 
 ## 浏览好友朋友圈
@@ -47,7 +47,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x
 
 ```powershell
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "朋友圈" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <moments_entry_x> --relative-y <moments_entry_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <moments_entry_element_id>
 ```
 
 ### 步骤3：滚动浏览
@@ -63,21 +63,21 @@ python scripts\winguictl.py action --window-id <moments_window_id> scroll --dire
 ```powershell
 # 使用 OCR 或图像匹配定位
 python scripts\winguictl.py find --window-id <moments_window_id> image --image-path assets\ellipsis.png
-python scripts\winguictl.py action --window-id <moments_window_id> click --relative-x <ellipsis_x> --relative-y <ellipsis_y>
+python scripts\winguictl.py action --window-id <moments_window_id> click --element-id <ellipsis_element_id>
 ```
 
 ### 步骤2：点击"赞"或"评论"
 
 ```powershell
 python scripts\winguictl.py find --window-id <moments_window_id> uia --text "赞" --control-type Button
-python scripts\winguictl.py action --window-id <moments_window_id> click --relative-x <like_x> --relative-y <like_y>
+python scripts\winguictl.py action --window-id <moments_window_id> click --element-id <like_element_id>
 ```
 
 ### 评论
 
 ```powershell
 python scripts\winguictl.py find --window-id <moments_window_id> uia --text "评论" --control-type Button
-python scripts\winguictl.py action --window-id <moments_window_id> click --relative-x <comment_x> --relative-y <comment_y>
+python scripts\winguictl.py action --window-id <moments_window_id> click --element-id <comment_element_id>
 python scripts\winguictl.py action --window-id <moments_window_id> type --text "赞！"
 # 点击绿色发送按钮（需颜色识别或坐标点击）
 ```

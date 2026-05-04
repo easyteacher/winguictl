@@ -7,9 +7,9 @@
 ```powershell
 # 点击"更多" -> "收藏"
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "更多" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <more_x> --relative-y <more_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <more_element_id>
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "收藏" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <collections_x> --relative-y <collections_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <collections_element_id>
 ```
 
 ## 新建笔记
@@ -18,7 +18,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x
 
 ```powershell
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "新建笔记" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <new_note_x> --relative-y <new_note_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <new_note_element_id>
 ```
 
 ### 步骤2：等待笔记窗口弹出
@@ -50,7 +50,7 @@ python scripts\winguictl.py action --window-id <note_window_id> hotkey --keys "{
 
 ```powershell
 python scripts\winguictl.py find --window-id <note_window_id> uia --text "更多" --control-type Button
-python scripts\winguictl.py action --window-id <note_window_id> click --relative-x <more_x> --relative-y <more_y>
+python scripts\winguictl.py action --window-id <note_window_id> click --element-id <more_element_id>
 python scripts\winguictl.py action --window-id <note_window_id> press-key --key "{UP}"
 python scripts\winguictl.py action --window-id <note_window_id> press-key --key "{UP}"
 python scripts\winguictl.py action --window-id <note_window_id> press-key --key "{ENTER}"
@@ -67,15 +67,15 @@ python scripts\winguictl.py action --window-id <note_window_id> press-key --key 
 
 ```powershell
 python scripts\winguictl.py find --window-id <collections_window_id> uia --text "链接" --control-type ListItem
-python scripts\winguictl.py action --window-id <collections_window_id> double-click --relative-x <link_x> --relative-y <link_y>
+python scripts\winguictl.py action --window-id <collections_window_id> double-click --element-id <link_element_id>
 ```
 
 ### 步骤3：右键点击链接项，选择"复制链接"
 
 ```powershell
-python scripts\winguictl.py action --window-id <collections_window_id> right-click --relative-x <link_item_x> --relative-y <link_item_y>
+python scripts\winguictl.py action --window-id <collections_window_id> right-click --element-id <link_item_element_id>
 python scripts\winguictl.py find --window-id <collections_window_id> uia --text "复制链接" --control-type MenuItem
-python scripts\winguictl.py action --window-id <collections_window_id> click --relative-x <copy_link_x> --relative-y <copy_link_y>
+python scripts\winguictl.py action --window-id <collections_window_id> click --element-id <copy_link_element_id>
 ```
 
 ### 步骤4：从剪贴板读取 URL（需外部脚本）

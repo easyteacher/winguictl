@@ -7,7 +7,7 @@
 ```powershell
 # 在聊天窗口中点击右上角"聊天信息"按钮（三个点）
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "聊天信息" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <chat_info_x> --relative-y <chat_info_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <chat_info_element_id>
 ```
 
 ## 设置消息免打扰
@@ -60,12 +60,12 @@ python scripts\winguictl.py uia-control --window-id <wx_window_id> --element-id 
 
 ```powershell
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "清空聊天记录" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <clear_x> --relative-y <clear_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <clear_element_id>
 ```
 
 ### 步骤3：确认清空
 
 ```powershell
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "清空" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <confirm_clear_x> --relative-y <confirm_clear_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <confirm_clear_element_id>
 ```

@@ -13,21 +13,21 @@
 
 ```powershell
 python scripts\winguictl.py find --window-id <history_window_id> uia --text "文件" --control-type TabItem
-python scripts\winguictl.py action --window-id <history_window_id> click --relative-x <file_tab_x> --relative-y <file_tab_y>
+python scripts\winguictl.py action --window-id <history_window_id> click --element-id <file_tab_element_id>
 ```
 
 ### 步骤3：遍历文件列表，右键点击文件
 
 ```powershell
 python scripts\winguictl.py find --window-id <history_window_id> uia --control-type ListItem
-python scripts\winguictl.py action --window-id <history_window_id> right-click --relative-x <file_x> --relative-y <file_y>
+python scripts\winguictl.py action --window-id <history_window_id> right-click --element-id <file_element_id>
 ```
 
 ### 步骤4：选择"另存为"或"复制"
 
 ```powershell
 python scripts\winguictl.py find --window-id <history_window_id> uia --text "另存为" --control-type MenuItem
-python scripts\winguictl.py action --window-id <history_window_id> click --relative-x <save_as_x> --relative-y <save_as_y>
+python scripts\winguictl.py action --window-id <history_window_id> click --element-id <save_as_element_id>
 ```
 
 ## 导出最近文件
@@ -37,9 +37,9 @@ python scripts\winguictl.py action --window-id <history_window_id> click --relat
 ```powershell
 # 点击"更多" -> "聊天文件"
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "更多" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <more_x> --relative-y <more_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <more_element_id>
 python scripts\winguictl.py find --window-id <wx_window_id> uia --text "聊天文件" --control-type Button
-python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <chat_files_x> --relative-y <chat_files_y>
+python scripts\winguictl.py action --window-id <wx_window_id> click --element-id <chat_files_element_id>
 ```
 
 ### 步骤2：等待窗口弹出

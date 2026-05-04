@@ -259,11 +259,11 @@ class TestCLI:
         from winguictl import build_parser
 
         parser = build_parser()
-        args = parser.parse_args(["action", "--window-id", "12345", "click", "--x", "100", "--y", "200"])
+        args = parser.parse_args(["action", "--window-id", "12345", "click", "--relative-x", "100", "--relative-y", "200"])
         assert args.command == "action"
         assert args.action_command == "click"
-        assert args.x == 100
-        assert args.y == 200
+        assert args.relative_x == 100
+        assert args.relative_y == 200
 
     def test_action_type_command(self):
         from winguictl import build_parser
@@ -302,18 +302,11 @@ class TestCLI:
         assert args.window_id == 12345
         assert args.output == "test.png"
 
-    def test_verbose_flag(self):
-        from winguictl import build_parser
-
-        parser = build_parser()
-        args = parser.parse_args(["--verbose", "window", "list"])
-        assert args.verbose is True
-
     def test_dry_run_flag(self):
         from winguictl import build_parser
 
         parser = build_parser()
-        args = parser.parse_args(["action", "--window-id", "12345", "click", "--x", "100", "--y", "200", "--dry-run"])
+        args = parser.parse_args(["action", "--window-id", "12345", "click", "--relative-x", "100", "--relative-y", "200", "--dry-run"])
         assert args.dry_run is True
 
 

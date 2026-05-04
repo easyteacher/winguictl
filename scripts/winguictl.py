@@ -46,7 +46,6 @@ _logger = logging.getLogger(__name__)
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(prog="winguictl", description="Windows automation CLI.")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Enable debug logging output")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     _build_window_parser(subparsers)
@@ -102,6 +101,7 @@ def _build_find_parser(subparsers: argparse._SubParsersAction) -> None:
     find_uia = sp.add_parser("uia", help="Find UIA controls inside a window.")
     find_uia.add_argument("--text")
     find_uia.add_argument("--control-type")
+    find_uia.add_argument("--action", help="Filter by supported uia-control action (e.g. set-text, invoke)")
     find_uia.add_argument("--exact", action="store_true")
 
     find_ocr = sp.add_parser("ocr", help="Find OCR text inside a window.")
@@ -270,6 +270,7 @@ def _build_uia_control_parser(subparsers: argparse._SubParsersAction) -> None:
     set_value.add_argument("value", help="Value to set.")
 
     sp.add_parser("select", help="Select the element (for list items, tree items).")
+    sp.add_parser("is-selected", help="Check if element is selected.")
     sp.add_parser("expand", help="Expand the element (for combo boxes, trees, menu items).")
     sp.add_parser("collapse", help="Collapse the element (for combo boxes, trees, menu items).")
     sp.add_parser("is-expanded", help="Check if element is expanded.")
@@ -296,6 +297,21 @@ def _build_uia_control_parser(subparsers: argparse._SubParsersAction) -> None:
     slider_set.add_argument("value", type=float, help="Value to set.")
     sp.add_parser("slider-min", help="Get slider minimum value.")
     sp.add_parser("slider-max", help="Get slider maximum value.")
+
+    sp.add_parser("window-close", help="Close the window (WindowPattern).")
+    sp.add_parser("window-minimize", help="Minimize the window (WindowPattern).")
+    sp.add_parser("window-maximize", help="Maximize the window (WindowPattern).")
+    sp.add_parser("window-restore", help="Restore the window to normal size (WindowPattern).")
+    sp.add_parser("window-state", help="Get window visual state (WindowPattern).")
+
+    transform_move = sp.add_parser("transform-move", help="Move element to screen coordinates (TransformPattern).")
+    transform_move.add_argument("--absolute-x", type=int, required=True, help="Target absolute screen X coordinate.")
+    transform_move.add_argument("--absolute-y", type=int, required=True, help="Target absolute screen Y coordinate.")
+    transform_resize = sp.add_parser("transform-resize", help="Resize element (TransformPattern).")
+    transform_resize.add_argument("width", type=int, help="New width in pixels.")
+    transform_resize.add_argument("height", type=int, help="New height in pixels.")
+    transform_rotate = sp.add_parser("transform-rotate", help="Rotate element (TransformPattern).")
+    transform_rotate.add_argument("degrees", type=float, help="Rotation angle in degrees.")
 
 
 def _build_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -402,7 +418,7 @@ def _handle_find(args: argparse.Namespace) -> int:
                 content = FindDriver.find_text(args.window_id, args.text, exact=args.exact)
                 print(wrap_with_boundary(content, nonce))
             case "uia":
-                content = FindDriver.find_uia(args.window_id, text=args.text, control_type=args.control_type, exact=args.exact)
+                content = FindDriver.find_uia(args.window_id, text=args.text, control_type=args.control_type, action=args.action, exact=args.exact)
                 print(wrap_with_boundary(content, nonce))
             case "ocr":
                 result = OCRDriver.find_ocr_text(args.window_id, args.text, exact=args.exact, confidence_threshold=args.confidence_threshold)
@@ -757,6 +773,9 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
             case "select":
                 UIADriver.select(wid, eid)
                 emit_action(True, "select", uia_info)
+            case "is-selected":
+                selected = UIADriver.is_selected(wid, eid)
+                emit_action(True, "is_selected", {**uia_info, "selected": selected})
             case "expand":
                 UIADriver.expand(wid, eid)
                 emit_action(True, "expand", uia_info)
@@ -809,6 +828,30 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
             case "slider-max":
                 value = UIADriver.slider_max(wid, eid)
                 emit_action(True, "slider_max", {**uia_info, "value": value})
+            case "window-close":
+                UIADriver.window_close(wid, eid)
+                emit_action(True, "window_close", uia_info)
+            case "window-minimize":
+                UIADriver.window_minimize(wid, eid)
+                emit_action(True, "window_minimize", uia_info)
+            case "window-maximize":
+                UIADriver.window_maximize(wid, eid)
+                emit_action(True, "window_maximize", uia_info)
+            case "window-restore":
+                UIADriver.window_restore(wid, eid)
+                emit_action(True, "window_restore", uia_info)
+            case "window-state":
+                state = UIADriver.window_state(wid, eid)
+                emit_action(True, "window_state", {**uia_info, "state": state})
+            case "transform-move":
+                UIADriver.transform_move(wid, eid, args.absolute_x, args.absolute_y)
+                emit_action(True, "transform_move", {**uia_info, "absolute_x": args.absolute_x, "absolute_y": args.absolute_y})
+            case "transform-resize":
+                UIADriver.transform_resize(wid, eid, args.width, args.height)
+                emit_action(True, "transform_resize", {**uia_info, "width": args.width, "height": args.height})
+            case "transform-rotate":
+                UIADriver.transform_rotate(wid, eid, args.degrees)
+                emit_action(True, "transform_rotate", {**uia_info, "degrees": args.degrees})
             case _:
                 emit_action(False, args.uia_control_command, {"window_id": str(wid), "element_id": eid, "error": f"unknown uia-control subcommand: {args.uia_control_command}"})
                 return 1
@@ -856,7 +899,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 1
 
     logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.WARNING,
+        level=logging.DEBUG,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         stream=sys.stderr,
     )

@@ -274,8 +274,8 @@ class Win32Driver:
                         result.append(child_hwnd)
 
                 win32gui.EnumChildWindows(parent_hwnd, _enum_cb, None)
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.warning("Failed to enumerate child windows for %d: %s", parent_hwnd, e)
+            except Exception:  # pylint: disable=broad-exception-caught
+                _logger.exception("Failed to enumerate child windows for %d", parent_hwnd)
             return result
 
         stack: list[tuple[int, int]] = [(window_id, 0)]

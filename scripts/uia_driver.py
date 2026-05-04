@@ -16,7 +16,7 @@ import logging
 import re
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import win32con
 import win32gui
@@ -52,6 +52,136 @@ def _get_uia_desktop() -> Desktop:
             if _uia_desktop is None:
                 _uia_desktop = Desktop(backend="uia")
     return _uia_desktop
+
+
+_PATTERN_TO_ACTIONS: dict[str, list[str]] = {
+    "InvokePattern": ["invoke"],
+    "ValuePattern": ["get-value", "set-value", "set-text", "get-text"],
+    "TextPattern": ["get-text"],
+    "TogglePattern": ["toggle", "get-toggle-state"],
+    "ExpandCollapsePattern": ["expand", "collapse", "is-expanded"],
+    "ScrollPattern": ["scroll"],
+    "SelectionPattern": ["list-selected-items"],
+    "SelectionItemPattern": ["select", "is-selected", "combo-select", "list-select", "tab-select"],
+    "RangeValuePattern": ["slider-value", "slider-set", "slider-min", "slider-max"],
+    "WindowPattern": ["window-close", "window-state", "window-minimize", "window-maximize", "window-restore"],
+    "TransformPattern": ["transform-move", "transform-resize", "transform-rotate"],
+}
+
+_PATTERN_CAN_CHECK: dict[str, dict[str, tuple[str, bool]]] = {
+    "ValuePattern": {
+        "set-value": ("CurrentIsReadOnly", True),
+        "set-text": ("CurrentIsReadOnly", True),
+    },
+    "WindowPattern": {
+        "window-minimize": ("CurrentCanMinimize", False),
+        "window-maximize": ("CurrentCanMaximize", False),
+    },
+    "TransformPattern": {
+        "transform-move": ("CurrentCanMove", False),
+        "transform-resize": ("CurrentCanResize", False),
+        "transform-rotate": ("CurrentCanRotate", False),
+    },
+}
+
+
+def get_supported_actions(element_info: UIAElementInfo) -> list[str]:
+    """Get the list of uia-control actions supported by an element.
+
+    Uses IUIAutomation.PollForPotentialSupportedPatterns to discover
+    all patterns an element supports, then maps them to winguictl
+    uia-control subcommand names. For WindowPattern and TransformPattern,
+    checks Can* properties to filter actions that are actually available.
+
+    Args:
+        element_info: UIA element info object
+
+    Returns:
+        List of supported uia-control action names (e.g. ['invoke', 'get-value', 'set-value'])
+    """
+    try:
+        from pywinauto.uia_defines import IUIA, NoPatternInterfaceError, get_elem_interface
+        element = element_info._element  # pylint: disable=protected-access
+        _, names = IUIA().iuia.PollForPotentialSupportedPatterns(element)
+        actions: list[str] = []
+        seen: set[str] = set()
+        for name in names:
+            mapped = _PATTERN_TO_ACTIONS.get(name, [])
+            can_check = _PATTERN_CAN_CHECK.get(name)
+            if can_check:
+                try:
+                    pattern_name = name.replace("Pattern", "")
+                    iface = get_elem_interface(element, pattern_name)
+                except (NoPatternInterfaceError, Exception):  # pylint: disable=broad-exception-caught
+                    _logger.exception("Failed to get pattern interface %s", name)
+                    continue
+                for action in mapped:
+                    if action in can_check:
+                        attr, negate = can_check[action]
+                        val = getattr(iface, attr, False)
+                        if negate:
+                            val = not val
+                        if val:
+                            if action not in seen:
+                                seen.add(action)
+                                actions.append(action)
+                    else:
+                        if action not in seen:
+                            seen.add(action)
+                            actions.append(action)
+            else:
+                for action in mapped:
+                    if action not in seen:
+                        seen.add(action)
+                        actions.append(action)
+        return actions
+    except Exception:  # pylint: disable=broad-exception-caught
+        _logger.exception("Failed to get supported patterns")
+        return []
+
+
+_PATTERN_STATE: dict[str, list[tuple[str, str]]] = {
+    "TogglePattern": [("toggle_state", "CurrentToggleState")],
+    "ExpandCollapsePattern": [("is_expanded", "CurrentExpandCollapseState")],
+    "SelectionItemPattern": [("is_selected", "CurrentIsSelected")],
+    "RangeValuePattern": [("slider_value", "CurrentValue")],
+    "WindowPattern": [("window_state", "CurrentWindowVisualState")],
+}
+
+
+def get_element_state(element_info: UIAElementInfo) -> dict[str, Any]:
+    """Get state information for a UIA element based on its supported patterns.
+
+    Args:
+        element_info: UIA element info object
+
+    Returns:
+        Dictionary of state key-value pairs (e.g. {"toggle_state": 1, "is_selected": True})
+    """
+    try:
+        from pywinauto.uia_defines import IUIA, NoPatternInterfaceError, get_elem_interface
+        element = element_info._element  # pylint: disable=protected-access
+        _, names = IUIA().iuia.PollForPotentialSupportedPatterns(element)
+        state: dict[str, Any] = {}
+        for name in names:
+            state_attrs = _PATTERN_STATE.get(name)
+            if not state_attrs:
+                continue
+            try:
+                pattern_name = name.replace("Pattern", "")
+                iface = get_elem_interface(element, pattern_name)
+            except (NoPatternInterfaceError, Exception):  # pylint: disable=broad-exception-caught
+                _logger.exception("Failed to get pattern interface for state %s", name)
+                continue
+            for key, attr in state_attrs:
+                try:
+                    state[key] = getattr(iface, attr)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    _logger.exception("Failed to get state attribute %s", attr)
+        return state
+    except Exception:  # pylint: disable=broad-exception-caught
+        _logger.exception("Failed to get element state")
+        return {}
 
 
 class UIAOperationError(RuntimeError):
@@ -123,7 +253,12 @@ class UIADriver:
         is_runtime_id_query = bool(re.match(r"^-?\d+(?:--?\d+)+$", query))
 
         visited: set[tuple[int, ...] | int] = set()
-        candidates = itertools.chain([wrapper], wrapper.iter_descendants())
+        try:
+            root_wrapper = wrapper.wrapper_object()
+        except Exception:  # pylint: disable=broad-exception-caught
+            _logger.exception("Failed to get root wrapper")
+            root_wrapper = None
+        candidates = itertools.chain([root_wrapper] if root_wrapper else [], wrapper.iter_descendants())
         for candidate in candidates:
             info = candidate.element_info
             rid = getattr(info, "runtime_id", None)
@@ -149,8 +284,8 @@ class UIADriver:
                     return wrapper.child_window(auto_id=element_id, found_index=0).wrapper_object()
                 except TypeError:
                     return wrapper.child_window(automation_id=element_id, found_index=0).wrapper_object()
-            except (ElementNotFoundError, PywinautoTimeoutError) as e:
-                _logger.warning("child_window search for auto_id=%s failed: %s", element_id, e)
+            except (ElementNotFoundError, PywinautoTimeoutError):
+                _logger.exception("child_window search for auto_id=%s failed", element_id)
             except Exception as e:  # pylint: disable=broad-exception-caught
                 _logger.debug("unexpected error in child_window search: %s", e)
 
@@ -213,8 +348,8 @@ class UIADriver:
             try:
                 wrapper.set_text(text)
                 return
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.warning("set_text failed on EditWrapper: %s", e)
+            except Exception:  # pylint: disable=broad-exception-caught
+                _logger.exception("set_text failed on EditWrapper")
         try:
             wrapper.iface_value.SetValue(text)
         except Exception as inner_e:  # pylint: disable=broad-exception-caught
@@ -267,6 +402,23 @@ class UIADriver:
         UIADriver._get_uia_wrapper(window_id, element_id).select()
 
     @staticmethod
+    def is_selected(window_id: int, element_id: str) -> bool:
+        """Check whether the UIA element is selected.
+
+        Args:
+            window_id: Parent window handle
+            element_id: Element identifier
+
+        Returns:
+            True if selected, False otherwise (including on error)
+        """
+        try:
+            return UIADriver._get_uia_wrapper(window_id, element_id).is_selected()
+        except Exception:  # pylint: disable=broad-exception-caught
+            _logger.exception("is_selected failed")
+            return False
+
+    @staticmethod
     def expand(window_id: int, element_id: str) -> None:
         """Expand the UIA element (for combo boxes, tree nodes, etc.)."""
         UIADriver._get_uia_wrapper(window_id, element_id).expand()
@@ -290,6 +442,7 @@ class UIADriver:
         try:
             return UIADriver._get_uia_wrapper(window_id, element_id).is_expanded()
         except Exception:  # pylint: disable=broad-exception-caught
+            _logger.exception("is_expanded failed")
             return False
 
     @staticmethod
@@ -326,8 +479,8 @@ class UIADriver:
                 texts = wrapper.texts()
                 if texts:
                     return texts
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.warning("texts() failed for UIA combobox: %s", e)
+            except Exception:  # pylint: disable=broad-exception-caught
+                _logger.exception("texts() failed for UIA combobox")
 
         return []
 
@@ -353,19 +506,19 @@ class UIADriver:
         wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
         try:
             return wrapper.selected_text()
-        except (AttributeError, TypeError):
-            pass
+        except (AttributeError, TypeError) as e:
+            _logger.debug("selected_text() not available: %s", e)
         except Exception:  # pylint: disable=broad-exception-caught
-            pass
+            _logger.exception("selected_text() failed")
 
         try:
             selection = wrapper.get_selection()
             if selection:
                 return selection[0].name
-        except (AttributeError, TypeError):
-            pass
+        except (AttributeError, TypeError) as e:
+            _logger.debug("get_selection() not available: %s", e)
         except Exception:  # pylint: disable=broad-exception-caught
-            pass
+            _logger.exception("get_selection() failed")
 
         return None
 
@@ -390,23 +543,23 @@ class UIADriver:
         combo_hwnd = None
         try:
             combo_hwnd = getattr(wrapper.element_info, "handle", None)
-        except (AttributeError, TypeError):
-            pass
+        except (AttributeError, TypeError) as e:
+            _logger.debug("handle attribute not available: %s", e)
 
         if combo_hwnd:
             try:
                 idx = win32gui.SendMessage(combo_hwnd, win32con.CB_GETCURSEL, 0, 0)
                 if idx >= 0:
                     return idx
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.warning("Win32 API CB_GETCURSEL failed for combobox: %s", e)
+            except Exception:  # pylint: disable=broad-exception-caught
+                _logger.exception("Win32 API CB_GETCURSEL failed for combobox")
 
         try:
             return wrapper.selected_index()
-        except (AttributeError, TypeError):
-            pass
+        except (AttributeError, TypeError) as e:
+            _logger.debug("selected_index() not available: %s", e)
         except Exception:  # pylint: disable=broad-exception-caught
-            pass
+            _logger.exception("selected_index() failed")
 
         selected_text = UIADriver.combo_selected_text(window_id, element_id)
         if selected_text is None:
@@ -415,8 +568,8 @@ class UIADriver:
         items = UIADriver.combo_items(window_id, element_id)
         try:
             return items.index(selected_text)
-        except ValueError:
-            pass
+        except ValueError as e:
+            _logger.debug("selected_text not found in items: %s", e)
 
         for i, item in enumerate(items):
             if item.lower() == selected_text.lower():
@@ -479,6 +632,84 @@ class UIADriver:
         return UIADriver._get_uia_wrapper(window_id, element_id).max_value()
 
     @staticmethod
+    def window_close(window_id: int, element_id: str) -> None:
+        """Close the window (via WindowPattern)."""
+        wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+        try:
+            wrapper.iface_window.Close()
+        except Exception:  # pylint: disable=broad-exception-caught
+            _logger.exception("iface_window.Close failed, falling back to ESC")
+            wrapper.type_keys("{ESC}")
+
+    @staticmethod
+    def window_minimize(window_id: int, element_id: str) -> None:
+        """Minimize the window (via WindowPattern)."""
+        from pywinauto.uia_defines import window_visual_state_minimized
+        wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+        iface = wrapper.iface_window
+        if iface.CurrentCanMinimize:
+            iface.SetWindowVisualState(window_visual_state_minimized)
+        else:
+            raise UIAOperationError("Window cannot be minimized")
+
+    @staticmethod
+    def window_maximize(window_id: int, element_id: str) -> None:
+        """Maximize the window (via WindowPattern)."""
+        from pywinauto.uia_defines import window_visual_state_maximized
+        wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+        iface = wrapper.iface_window
+        if iface.CurrentCanMaximize:
+            iface.SetWindowVisualState(window_visual_state_maximized)
+        else:
+            raise UIAOperationError("Window cannot be maximized")
+
+    @staticmethod
+    def window_restore(window_id: int, element_id: str) -> None:
+        """Restore the window to normal size (via WindowPattern)."""
+        from pywinauto.uia_defines import window_visual_state_normal
+        wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+        wrapper.iface_window.SetWindowVisualState(window_visual_state_normal)
+
+    @staticmethod
+    def window_state(window_id: int, element_id: str) -> str:
+        """Get the window visual state (via WindowPattern).
+
+        Returns:
+            "normal", "maximized", or "minimized"
+        """
+        wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+        state = wrapper.iface_window.CurrentWindowVisualState
+        state_map = {0: "normal", 1: "maximized", 2: "minimized"}
+        return state_map.get(state, f"unknown({state})")
+
+    @staticmethod
+    def transform_move(window_id: int, element_id: str, x: int, y: int) -> None:
+        """Move the element to the specified screen coordinates (via TransformPattern)."""
+        wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+        iface = wrapper.iface_transform
+        if not iface.CurrentCanMove:
+            raise UIAOperationError("Element cannot be moved")
+        iface.Move(x, y)
+
+    @staticmethod
+    def transform_resize(window_id: int, element_id: str, width: int, height: int) -> None:
+        """Resize the element (via TransformPattern)."""
+        wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+        iface = wrapper.iface_transform
+        if not iface.CurrentCanResize:
+            raise UIAOperationError("Element cannot be resized")
+        iface.Resize(width, height)
+
+    @staticmethod
+    def transform_rotate(window_id: int, element_id: str, degrees: float) -> None:
+        """Rotate the element (via TransformPattern)."""
+        wrapper = UIADriver._get_uia_wrapper(window_id, element_id)
+        iface = wrapper.iface_transform
+        if not iface.CurrentCanRotate:
+            raise UIAOperationError("Element cannot be rotated")
+        iface.Rotate(degrees)
+
+    @staticmethod
     def snapshot_uia_tree(window_id: int) -> str:
         """Generate a UIA element tree snapshot for the window.
 
@@ -517,12 +748,14 @@ class UIADriver:
                 continue
             visited.add(elem_key)
 
-            lines.append(ElementFormatter.format_uia(info, level, win_x, win_y))
+            actions = get_supported_actions(info)
+            elem_state = get_element_state(info)
+            lines.append(ElementFormatter.format_uia(info, level, win_x, win_y, supported_actions=actions, state=elem_state))
             try:
                 for child in element.iter_children():
                     stack.appendleft((child, level + 1))
             except Exception:  # pylint: disable=broad-exception-caught
-                pass
+                _logger.exception("iter_children() failed for element")
 
         return "\n".join(lines)
 
@@ -562,6 +795,6 @@ class UIADriver:
                 result["runtime_id"] = "-".join(str(x) for x in runtime_id)
 
             return result
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            _logger.warning("Failed to get UIA element at point (%d, %d): %s", absolute_x, absolute_y, e)
+        except Exception:  # pylint: disable=broad-exception-caught
+            _logger.exception("Failed to get UIA element at point (%d, %d)", absolute_x, absolute_y)
             return None

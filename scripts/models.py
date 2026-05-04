@@ -96,6 +96,26 @@ class Bounds:
         )
 
     @classmethod
+    def from_ltrb(cls, left: int, top: int, right: int, bottom: int) -> "Bounds":
+        """Create Bounds from left/top/right/bottom values.
+
+        Args:
+            left: Left edge coordinate
+            top: Top edge coordinate
+            right: Right edge coordinate
+            bottom: Bottom edge coordinate
+
+        Returns:
+            Bounds instance with computed width and height
+        """
+        return cls(
+            x=int(left),
+            y=int(top),
+            width=int(right - left),
+            height=int(bottom - top),
+        )
+
+    @classmethod
     def from_rect_relative(cls, rect: Any, window_x: int, window_y: int) -> "Bounds":
         """Create Bounds from rect and convert to window-relative coordinates.
 
@@ -189,6 +209,8 @@ class ElementInfo:
     runtime_id: Optional[str] = None
     source: Optional[str] = None
     confidence: Optional[float] = None
+    supported_actions: Optional[list[str]] = None
+    state: Optional[dict[str, Any]] = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -205,6 +227,8 @@ class ElementInfo:
             "runtime_id": self.runtime_id,
             "source": self.source,
             "confidence": float(self.confidence) if self.confidence is not None else None,
+            "supported_actions": self.supported_actions,
+            "state": self.state,
             "metadata": self.metadata,
         }
 
@@ -281,7 +305,7 @@ class ElementFormatter:
         return f'{prefix}- "{self.text}" [{details}]'
 
     @staticmethod
-    def format_uia(info: "HasUIAAttributes", level: int = 0, offset_x: int = 0, offset_y: int = 0) -> str:
+    def format_uia(info: "HasUIAAttributes", level: int = 0, offset_x: int = 0, offset_y: int = 0, supported_actions: Optional[list[str]] = None, state: Optional[dict[str, Any]] = None) -> str:
         """Format UIA element info as a human-readable string.
 
         Args:
@@ -289,6 +313,7 @@ class ElementFormatter:
             level: Indentation level for nested elements
             offset_x: X offset to subtract from rect (for window-relative coordinates)
             offset_y: Y offset to subtract from rect (for window-relative coordinates)
+            supported_actions: List of supported uia-control action names
 
         Returns:
             Formatted string representation of the element
@@ -313,6 +338,11 @@ class ElementFormatter:
             extra["control_id"] = str(control_id)
         if runtime_id is not None:
             extra["runtime_id"] = "-".join(str(x) for x in runtime_id)
+        if supported_actions:
+            extra["supported_actions"] = ",".join(supported_actions)
+        if state:
+            for key, val in state.items():
+                extra[key] = str(val)
 
         formatter = ElementFormatter(
             text=name,
@@ -387,6 +417,11 @@ class ElementFormatter:
             extra["control_id"] = str(element_info.control_id)
         if element_info.runtime_id is not None:
             extra["runtime_id"] = element_info.runtime_id
+        if element_info.supported_actions:
+            extra["supported_actions"] = ",".join(element_info.supported_actions)
+        if element_info.state:
+            for key, val in element_info.state.items():
+                extra[key] = str(val)
 
         formatter = ElementFormatter(
             text=element_info.text,

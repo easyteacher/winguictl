@@ -68,8 +68,8 @@ class WindowsDriver:
             wrapper = WindowsDriver._wrap(window_id)
             getattr(wrapper, action_name)(**kwargs)
             return True
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            _logger.warning("window action %s failed for window_id=%s: %s", action_name, window_id, e)
+        except Exception:  # pylint: disable=broad-exception-caught
+            _logger.exception("window action %s failed for window_id=%s", action_name, window_id)
             return False
 
     @staticmethod

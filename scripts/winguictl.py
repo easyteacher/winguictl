@@ -186,7 +186,8 @@ def _build_control_parser(subparsers: argparse._SubParsersAction) -> None:
     sp = p.add_subparsers(dest="control_command", required=True)
 
     set_text = sp.add_parser("set-text", help="Set text content of an edit control.")
-    set_text.add_argument("text", help="Text to set.")
+    set_text.add_argument("text", nargs="?", default=None, help="Text to set.")
+    set_text.add_argument("--text", dest="text_opt", default=None, help="Text to set (for compatibility, prefer positional argument).")
     sp.add_parser("set-focus", help="Set focus to the control.")
     sp.add_parser("get-text", help="Get text content of an edit control.")
     sp.add_parser("click", help="Click a button control.")
@@ -257,7 +258,8 @@ def _build_uia_control_parser(subparsers: argparse._SubParsersAction) -> None:
     sp.add_parser("get-text", help="Get element text.")
 
     set_text = sp.add_parser("set-text", help="Set text in edit control.")
-    set_text.add_argument("text", help="Text to set.")
+    set_text.add_argument("text", nargs="?", default=None, help="Text to set.")
+    set_text.add_argument("--text", dest="text_opt", default=None, help="Text to set (for compatibility, prefer positional argument).")
     sp.add_parser("set-focus", help="Set focus to the element.")
 
     type_keys = sp.add_parser("type-keys", help="Type keys to the element.")
@@ -343,6 +345,7 @@ def _build_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
 def _build_wait_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the wait subcommand parser."""
     p = subparsers.add_parser("wait", help="Wait for conditions (window, text, element, image).")
+    p.add_argument("--window-id", type=int, help="Window handle (required for text, uia, ocr, image subcommands).")
     sp = p.add_subparsers(dest="wait_command", required=True)
 
     sleep_cmd = sp.add_parser("sleep", help="Wait for a specified duration.")
@@ -357,7 +360,6 @@ def _build_wait_parser(subparsers: argparse._SubParsersAction) -> None:
     window_cmd.add_argument("--disappear", action="store_true", help="Wait for window to disappear instead of appear.")
 
     text_cmd = sp.add_parser("text", help="Wait for text to appear or disappear in a window.")
-    text_cmd.add_argument("--window-id", type=int, required=True, help="Window handle.")
     text_cmd.add_argument("text", help="Text to wait for.")
     text_cmd.add_argument("--exact", action="store_true", help="Match text exactly.")
     text_cmd.add_argument("--timeout", type=float, default=30.0, help="Timeout in seconds (default: 30).")
@@ -365,7 +367,6 @@ def _build_wait_parser(subparsers: argparse._SubParsersAction) -> None:
     text_cmd.add_argument("--disappear", action="store_true", help="Wait for text to disappear instead of appear.")
 
     uia_cmd = sp.add_parser("uia", help="Wait for UIA element to appear or disappear in a window.")
-    uia_cmd.add_argument("--window-id", type=int, required=True, help="Window handle.")
     uia_cmd.add_argument("--text", help="Filter by element text/name.")
     uia_cmd.add_argument("--control-type", help="Filter by control type.")
     uia_cmd.add_argument("--class", dest="class_name", help="Filter by window class name.")
@@ -376,7 +377,6 @@ def _build_wait_parser(subparsers: argparse._SubParsersAction) -> None:
     uia_cmd.add_argument("--disappear", action="store_true", help="Wait for element to disappear instead of appear.")
 
     ocr_cmd = sp.add_parser("ocr", help="Wait for OCR text to appear or disappear in a window.")
-    ocr_cmd.add_argument("--window-id", type=int, required=True, help="Window handle.")
     ocr_cmd.add_argument("text", help="Text to wait for.")
     ocr_cmd.add_argument("--exact", action="store_true", help="Match text exactly.")
     ocr_cmd.add_argument("--confidence-threshold", type=float, default=0.0, help="OCR confidence threshold.")
@@ -385,7 +385,6 @@ def _build_wait_parser(subparsers: argparse._SubParsersAction) -> None:
     ocr_cmd.add_argument("--disappear", action="store_true", help="Wait for text to disappear instead of appear.")
 
     image_cmd = sp.add_parser("image", help="Wait for image to appear or disappear in a window.")
-    image_cmd.add_argument("--window-id", type=int, required=True, help="Window handle.")
     image_cmd.add_argument("--image-path", required=True, help="Template image file path.")
     image_cmd.add_argument("--threshold", type=float, default=0.9, help="Match confidence threshold (0-1).")
     image_cmd.add_argument("--timeout", type=float, default=30.0, help="Timeout in seconds (default: 30).")
@@ -743,8 +742,9 @@ def _handle_control(args: argparse.Namespace) -> int:
 
         match args.control_command:
             case "set-text":
-                Win32Driver.set_text(hwnd, args.text)
-                emit_action(True, "set_text", {**control_info, "text": args.text})
+                text = args.text if args.text is not None else args.text_opt
+                Win32Driver.set_text(hwnd, text)
+                emit_action(True, "set_text", {**control_info, "text": text})
             case "set-focus":
                 Win32Driver.set_focus(hwnd)
                 emit_action(True, "set_focus", control_info)
@@ -836,8 +836,9 @@ def _handle_uia_control(args: argparse.Namespace) -> int:
         _emit(cmd, {})
 
     def _with_text(cmd: str, func) -> None:
-        _emit(cmd, {"text": args.text})
-        func(wid, eid, args.text)
+        text = args.text if args.text is not None else args.text_opt
+        _emit(cmd, {"text": text})
+        func(wid, eid, text)
 
     def _with_keys(cmd: str, func) -> None:
         _emit(cmd, {"keys": args.keys})
@@ -988,18 +989,19 @@ def _handle_wait(args: argparse.Namespace) -> int:
                 start_time = time.time()
                 timeout = args.timeout
                 interval = args.interval / 1000.0
-                found_hwnd = None
+                found_info = None
 
                 while True:
-                    found_hwnd = WaitUtils.check_window_exists(args.title, args.exact, args.class_name)
+                    found_info = WaitUtils.check_window_exists(args.title, args.exact, args.class_name)
                     if args.disappear:
-                        if found_hwnd is None:
+                        if found_info is None:
                             emit_action(True, "window_disappear", {"title": args.title, "elapsed_ms": int((time.time() - start_time) * 1000)})
                             return 0
                     else:
-                        if found_hwnd is not None:
-                            window_title = Win32API.get_window_text(found_hwnd)
-                            emit_action(True, "window_appear", {"title": args.title, "window_id": str(found_hwnd), "window_title": window_title, "elapsed_ms": int((time.time() - start_time) * 1000)})
+                        if found_info is not None:
+                            nonce = generate_nonce()
+                            content = f"- \"{found_info['title']}\" [window_id=\"{found_info['window_id']}\" class_name=\"{found_info['class_name']}\" process=\"{found_info['process']}\" pid=\"{found_info['pid']}\"]"
+                            print(wrap_with_boundary(content, nonce))
                             return 0
 
                     if time.time() - start_time >= timeout:
@@ -1010,20 +1012,24 @@ def _handle_wait(args: argparse.Namespace) -> int:
                 return 1
 
             case "text":
+                if not args.window_id:
+                    emit_action(False, "text", {"error": "--window-id is required for text subcommand"})
+                    return 1
                 unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
                 start_time = time.time()
                 timeout = args.timeout
                 interval = args.interval / 1000.0
 
                 while True:
-                    exists = WaitUtils.check_text_exists(args.window_id, args.text, args.exact)
+                    result = WaitUtils.check_text_exists(args.window_id, args.text, args.exact)
                     if args.disappear:
-                        if not exists:
+                        if result is None:
                             emit_action(True, "text_disappear", {"window_id": str(args.window_id), "text": args.text, "elapsed_ms": int((time.time() - start_time) * 1000)})
                             return 0
                     else:
-                        if exists:
-                            emit_action(True, "text_appear", {"window_id": str(args.window_id), "text": args.text, "elapsed_ms": int((time.time() - start_time) * 1000)})
+                        if result is not None:
+                            nonce = generate_nonce()
+                            print(wrap_with_boundary(result, nonce))
                             return 0
 
                     if time.time() - start_time >= timeout:
@@ -1034,20 +1040,24 @@ def _handle_wait(args: argparse.Namespace) -> int:
                 return 1
 
             case "uia":
+                if not args.window_id:
+                    emit_action(False, "uia", {"error": "--window-id is required for uia subcommand"})
+                    return 1
                 unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
                 start_time = time.time()
                 timeout = args.timeout
                 interval = args.interval / 1000.0
 
                 while True:
-                    exists = WaitUtils.check_uia_exists(args.window_id, args.text, args.control_type, args.class_name, args.automation_id, args.exact)
+                    result = WaitUtils.check_uia_exists(args.window_id, args.text, args.control_type, args.class_name, args.automation_id, args.exact)
                     if args.disappear:
-                        if not exists:
+                        if result is None:
                             emit_action(True, "uia_disappear", {"window_id": str(args.window_id), "elapsed_ms": int((time.time() - start_time) * 1000)})
                             return 0
                     else:
-                        if exists:
-                            emit_action(True, "uia_appear", {"window_id": str(args.window_id), "elapsed_ms": int((time.time() - start_time) * 1000)})
+                        if result is not None:
+                            nonce = generate_nonce()
+                            print(wrap_with_boundary(result, nonce))
                             return 0
 
                     if time.time() - start_time >= timeout:
@@ -1058,20 +1068,25 @@ def _handle_wait(args: argparse.Namespace) -> int:
                 return 1
 
             case "ocr":
+                if not args.window_id:
+                    emit_action(False, "ocr", {"error": "--window-id is required for ocr subcommand"})
+                    return 1
                 unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
                 start_time = time.time()
                 timeout = args.timeout
                 interval = args.interval / 1000.0
 
                 while True:
-                    exists = WaitUtils.check_ocr_exists(args.window_id, args.text, args.exact, args.confidence_threshold)
+                    matches = WaitUtils.check_ocr_exists(args.window_id, args.text, args.exact, args.confidence_threshold)
                     if args.disappear:
-                        if not exists:
+                        if not matches:
                             emit_action(True, "ocr_disappear", {"window_id": str(args.window_id), "text": args.text, "elapsed_ms": int((time.time() - start_time) * 1000)})
                             return 0
                     else:
-                        if exists:
-                            emit_action(True, "ocr_appear", {"window_id": str(args.window_id), "text": args.text, "elapsed_ms": int((time.time() - start_time) * 1000)})
+                        if matches:
+                            nonce = generate_nonce()
+                            content = "\n".join(ElementFormatter.format_element(m) for m in matches)
+                            print(wrap_with_boundary(content, nonce))
                             return 0
 
                     if time.time() - start_time >= timeout:
@@ -1082,20 +1097,25 @@ def _handle_wait(args: argparse.Namespace) -> int:
                 return 1
 
             case "image":
+                if not args.window_id:
+                    emit_action(False, "image", {"error": "--window-id is required for image subcommand"})
+                    return 1
                 unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
                 start_time = time.time()
                 timeout = args.timeout
                 interval = args.interval / 1000.0
 
                 while True:
-                    exists = WaitUtils.check_image_exists(args.window_id, args.image_path, args.threshold)
+                    matches = WaitUtils.check_image_exists(args.window_id, args.image_path, args.threshold)
                     if args.disappear:
-                        if not exists:
+                        if not matches:
                             emit_action(True, "image_disappear", {"window_id": str(args.window_id), "image_path": args.image_path, "elapsed_ms": int((time.time() - start_time) * 1000)})
                             return 0
                     else:
-                        if exists:
-                            emit_action(True, "image_appear", {"window_id": str(args.window_id), "image_path": args.image_path, "elapsed_ms": int((time.time() - start_time) * 1000)})
+                        if matches:
+                            nonce = generate_nonce()
+                            content = "\n".join(ElementFormatter.format_element(m) for m in matches)
+                            print(wrap_with_boundary(content, nonce))
                             return 0
 
                     if time.time() - start_time >= timeout:
@@ -1115,6 +1135,9 @@ def _handle_wait(args: argparse.Namespace) -> int:
 
 def main(argv: Optional[list[str]] = None) -> int:
     """CLI main entry function."""
+    if argv is None:
+        argv = sys.argv[1:]
+    argv = _preprocess_window_id(argv)
     parser = build_parser()
     try:
         args = parser.parse_args(argv)
@@ -1154,6 +1177,56 @@ def main(argv: Optional[list[str]] = None) -> int:
         _logger.exception("unexpected error: %s", e)
         emit(ActionResult(ok=False, code="ERROR", message=str(e)).to_dict())
         return 1
+
+
+def _preprocess_window_id(argv: list[str]) -> list[str]:
+    """Preprocess argv to move --window-id to the correct position.
+
+    This allows --window-id to be specified anywhere in the command line.
+    For example:
+        winguictl --window-id 123 window focus
+        winguictl window --window-id 123 focus
+        winguictl window focus --window-id 123
+        winguictl --window-id 123 wait uia --automation-id chat_input_field
+    All become equivalent.
+    """
+    commands_with_window_id = {"window", "snapshot", "find", "action", "uia-control", "screenshot", "wait"}
+
+    window_id_value = None
+    window_id_indices_to_remove = []
+
+    for i, arg in enumerate(argv):
+        if arg == "--window-id" and i + 1 < len(argv):
+            window_id_value = argv[i + 1]
+            window_id_indices_to_remove = [i, i + 1]
+            break
+        elif arg.startswith("--window-id="):
+            window_id_value = arg.split("=", 1)[1]
+            window_id_indices_to_remove = [i]
+            break
+
+    if window_id_value is None:
+        return argv
+
+    command_index = None
+    for i, arg in enumerate(argv):
+        if arg in commands_with_window_id:
+            command_index = i
+            break
+
+    if command_index is None:
+        return argv
+
+    new_argv = []
+    for i, arg in enumerate(argv):
+        if i not in window_id_indices_to_remove:
+            new_argv.append(arg)
+
+    insert_index = 1
+    new_argv.insert(insert_index, "--window-id")
+    new_argv.insert(insert_index + 1, window_id_value)
+
+    return new_argv
 
 
 if __name__ == "__main__":

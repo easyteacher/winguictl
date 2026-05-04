@@ -50,7 +50,8 @@ def _is_valid_rect(rect) -> bool:
         return False
     try:
         return rect.right > rect.left and rect.bottom > rect.top
-    except (AttributeError, TypeError):
+    except (AttributeError, TypeError) as e:
+        _logger.debug("Invalid rect format: %s", e)
         return False
 
 
@@ -153,11 +154,11 @@ class FindDriver:
                             confidence=1.0 if exact else 0.95,
                         )
                     )
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    _logger.warning("Error processing UIA descendant: %s", e)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    _logger.exception("Error processing UIA descendant")
                     continue
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            _logger.warning("UIA traversal failed for window %d: %s", window_id, e)
+        except Exception:  # pylint: disable=broad-exception-caught
+            _logger.exception("UIA traversal failed for window %d", window_id)
 
         if not matches:
             matches = FindDriver._find_text_win32(window_id, text, exact)
@@ -219,6 +220,7 @@ class FindDriver:
         window_id: int,
         text: Optional[str] = None,
         control_type: Optional[str] = None,
+        action: Optional[str] = None,
         exact: bool = False,
     ) -> str:
         """Find controls through the UIA tree.
@@ -233,12 +235,13 @@ class FindDriver:
             window_id: Window handle
             text: Text filter condition (optional)
             control_type: Control type filter condition (optional)
+            action: Supported action filter condition (optional, e.g. "set-text")
             exact: Whether to match exactly
 
         Returns:
             Formatted matching result string with window-relative coordinates.
         """
-        if text is None and control_type is None:
+        if text is None and control_type is None and action is None:
             raise ValueError("find_uia requires at least one filter")
         desktop = _get_uia_desktop()
         wrapper = desktop.window(handle=window_id)
@@ -259,8 +262,18 @@ class FindDriver:
                     if k.casefold() == ct_lower:
                         uia_control_type = k
                         break
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.warning("Failed to resolve UIA control type: %s", e)
+            except Exception:  # pylint: disable=broad-exception-caught
+                _logger.exception("Failed to resolve UIA control type")
+
+        _control_type_aliases: dict[str, list[str]] = {
+            "edit": ["document"],
+        }
+        lowered_ct_aliases: list[str] = []
+        if control_type is not None:
+            aliases = _control_type_aliases.get(control_type.strip().casefold(), [])
+            lowered_ct_aliases = [a.casefold() for a in aliases]
+            if uia_control_type and lowered_ct_aliases:
+                uia_control_type = None
 
         lowered_text = normalize(text).casefold() if text is not None else None
         lowered_ct = normalize(control_type).casefold() if control_type is not None else None
@@ -270,6 +283,7 @@ class FindDriver:
 
         priority_results: list[ElementInfo] = []
         other_results: list[ElementInfo] = []
+        seen_runtime_ids: set[str] = set()
 
         for candidate in candidates:
             info = candidate.element_info
@@ -288,10 +302,10 @@ class FindDriver:
             if control_type is not None and uia_control_type is None:
                 ct_cf = candidate_control_type.casefold()
                 if exact:
-                    if ct_cf != lowered_ct:
+                    if ct_cf != lowered_ct and ct_cf not in lowered_ct_aliases:
                         continue
                 else:
-                    if lowered_ct not in ct_cf:
+                    if lowered_ct not in ct_cf and not any(a in ct_cf for a in lowered_ct_aliases):
                         continue
 
             rect = getattr(info, "rectangle", None)
@@ -303,6 +317,18 @@ class FindDriver:
             control_id = getattr(info, "control_id", None)
             runtime_id = _format_runtime_id(getattr(info, "runtime_id", None))
             candidate_class_name = normalize(getattr(info, "class_name", ""))
+
+            if runtime_id in seen_runtime_ids:
+                continue
+            seen_runtime_ids.add(runtime_id)
+
+            from uia_driver import get_element_state, get_supported_actions
+            element_actions = get_supported_actions(info)
+            element_state = get_element_state(info)
+
+            if action is not None:
+                if action.casefold() not in (a.casefold() for a in element_actions):
+                    continue
 
             element_info = ElementInfo(
                 element_id=element_id,
@@ -316,6 +342,8 @@ class FindDriver:
                 runtime_id=runtime_id,
                 source="uia",
                 confidence=1.0 if exact else 0.95,
+                supported_actions=element_actions if element_actions else None,
+                state=element_state if element_state else None,
             )
 
             if candidate_class_name == "UIProperty":

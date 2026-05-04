@@ -53,10 +53,25 @@ DEFAULT_KEY_DELAY_MS = 50
 DEFAULT_DRAG_START_DELAY_MS = 50
 DEFAULT_HOTKEY_DELAY_MS = 50
 
+# Drag animation step interval (~60 FPS)
+DEFAULT_DRAG_STEP_INTERVAL_MS = 16
+
 # ── UIA Driver Timeouts ──────────────────────────────────────────────
 DEFAULT_UIA_WAIT_TIMEOUT_SEC = 3
 DEFAULT_COMBOBOX_DROPDOWN_TIMEOUT_MS = 500
 DEFAULT_COMBOBOX_POLL_INTERVAL_MS = 50
+
+# ── Error Codes ──────────────────────────────────────────────────────
+class ErrorCode:
+    """Standard error codes for action results."""
+
+    OK = "OK"
+    FAILED = "FAILED"
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+    NOT_FOUND = "NOT_FOUND"
+    TIMEOUT = "TIMEOUT"
+    DRY_RUN = "DRY_RUN"
+    ERROR = "ERROR"
 
 # ── Virtual Key Code Mapping ─────────────────────────────────────────
 # Key name (lowercase) → Win32 virtual key code, used for send_press_key / send_hotkey

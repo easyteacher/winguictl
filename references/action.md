@@ -332,14 +332,20 @@ This ensures the window is active and the mouse is within the window bounds for 
 
 ## Scroll
 
-Send mouse wheel scroll events at the current mouse position.
+Send mouse wheel scroll events at the specified position.
 
 ```powershell
-# Scroll down 3 notches
+# Scroll at window center (default behavior)
 python scripts\winguictl.py action --window-id <id> scroll --direction down --amount 3
 
-# Scroll up 1 notch (default)
-python scripts\winguictl.py action --window-id <id> scroll --direction up
+# Scroll at window-relative coordinates
+python scripts\winguictl.py action --window-id <id> scroll --direction down --relative-x 100 --relative-y 200
+
+# Scroll at absolute screen coordinates
+python scripts\winguictl.py action scroll --direction up --absolute-x 500 --absolute-y 300
+
+# Scroll at element center
+python scripts\winguictl.py action --window-id <id> scroll --direction down --element-id <element_id>
 
 # Scroll right 2 notches
 python scripts\winguictl.py action --window-id <id> scroll --direction right --amount 2
@@ -351,11 +357,15 @@ python scripts\winguictl.py action --window-id <id> scroll --direction down --am
 ### Execution Behavior
 
 Before scrolling, the command will:
-1. Focus the target window (bring it to foreground)
-2. Move the mouse cursor to the center of the window
+1. Focus the target window (bring it to foreground) if `--window-id` is provided
+2. Move the mouse cursor to the specified position:
+   - `--relative-x/y`: Window-relative coordinates
+   - `--absolute-x/y`: Absolute screen coordinates
+   - `--element-id`: Element center point
+   - No coordinates: Window center (default)
 3. Send mouse wheel events in the specified direction
 
-This ensures the window is active and the mouse is within the window bounds for proper scroll delivery.
+This ensures the scroll events are delivered at the correct location for proper scroll delivery.
 
 ### Scroll Parameters
 
@@ -363,7 +373,22 @@ This ensures the window is active and the mouse is within the window bounds for 
 |-----------|-------------|
 | `--direction` | Scroll direction: `up`, `down`, `left`, `right` (required) |
 | `--amount` | Number of notches to scroll (default: 1) |
+| `--window-id` | Window handle (required for relative coordinates and element-id) |
+| `--relative-x`, `--relative-y` | Window-relative coordinates (requires `--window-id`) |
+| `--absolute-x`, `--absolute-y` | Absolute screen coordinates (mutually exclusive with relative) |
+| `--element-id` | UIA element ID, scrolls at element center (requires `--window-id`) |
 | `--dry-run` | Preview mode, does not execute actual scroll |
+
+### Coordinate Modes
+
+The scroll command supports three coordinate modes (mutually exclusive):
+
+| Mode | Parameters | Description |
+|------|------------|-------------|
+| Relative | `--relative-x`, `--relative-y` | Coordinates relative to window top-left (requires `--window-id`) |
+| Absolute | `--absolute-x`, `--absolute-y` | Absolute screen coordinates |
+| Element | `--element-id` | Scroll at UIA element center (requires `--window-id`) |
+| Default | (none) | Scroll at window center (requires `--window-id`) |
 
 ### Scroll vs Keyboard Page Keys
 
@@ -384,4 +409,4 @@ Prefer `scroll` over `press-key` with `{PGDN}`/`{PGUP}` for scrolling:
 | `press-key` | Press key | `--key`, `--dry-run` |
 | `hotkey` | Key chord | `--keys`, `--dry-run` |
 | `clear-text` | Clear text | `--dry-run` |
-| `scroll` | Mouse wheel scroll | `--direction`, `--amount`, `--dry-run` |
+| `scroll` | Mouse wheel scroll | `--direction`, `--amount`, `--window-id`, `--relative-x/y` OR `--absolute-x/y` OR `--element-id`, `--dry-run` |

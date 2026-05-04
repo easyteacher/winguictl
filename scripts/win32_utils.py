@@ -28,6 +28,7 @@ from PIL import Image
 from constants import (
     DEFAULT_CLICK_DELAY_MS,
     DEFAULT_DRAG_START_DELAY_MS,
+    DEFAULT_DRAG_STEP_INTERVAL_MS,
     DEFAULT_HOTKEY_DELAY_MS,
     DEFAULT_KEY_DELAY_MS,
     SENDINPUT_ABSOLUTE_MAX,
@@ -228,23 +229,23 @@ class Win32API:
             if bmp is not None:
                 try:
                     win32gui.DeleteObject(bmp.GetHandle())
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    _logger.debug("Failed to delete bitmap handle: %s", e)
             if memdc is not None:
                 try:
                     memdc.DeleteDC()
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    _logger.debug("Failed to delete memory DC: %s", e)
             if dc is not None:
                 try:
                     dc.DeleteDC()
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    _logger.debug("Failed to delete DC: %s", e)
             if hdc_window is not None:
                 try:
                     win32gui.ReleaseDC(window_id, hdc_window)
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    _logger.debug("Failed to release window DC: %s", e)
         return x, y, width, height, data
 
     @staticmethod
@@ -312,7 +313,7 @@ class Win32API:
             ny = int(y * SENDINPUT_ABSOLUTE_MAX / height) if height > 0 else 0
             return nx, ny
 
-        steps = max(1, duration_ms // 16)
+        steps = max(1, duration_ms // DEFAULT_DRAG_STEP_INTERVAL_MS)
 
         start_x, start_y = to_absolute(x1, y1)
         inputs = (INPUT * 2)()

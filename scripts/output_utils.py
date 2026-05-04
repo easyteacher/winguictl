@@ -222,3 +222,49 @@ def emit_action_result(verb: str, dry_run: bool, data: dict[str, Any]) -> None:
     code = "DRY_RUN" if dry_run else "OK"
     message = f"{verb} preview generated" if dry_run else f"{verb} executed"
     emit(ActionResult(ok=True, code=code, message=message, data=data).to_dict())
+
+
+def validate_coordinate_pair(x: Optional[int], y: Optional[int], x_name: str, y_name: str) -> None:
+    """Validate that coordinate pair is either both provided or both None.
+
+    Args:
+        x: X coordinate value
+        y: Y coordinate value
+        x_name: Name of X parameter for error message
+        y_name: Name of Y parameter for error message
+
+    Raises:
+        ValueError: If only one coordinate is provided
+    """
+    if x is not None and y is None:
+        raise ValueError(f"{x_name} requires {y_name}")
+    if y is not None and x is None:
+        raise ValueError(f"{y_name} requires {x_name}")
+
+
+def validate_positive_int(value: int, name: str) -> None:
+    """Validate that a value is a positive integer.
+
+    Args:
+        value: Value to validate
+        name: Parameter name for error message
+
+    Raises:
+        ValueError: If value is not positive
+    """
+    if value <= 0:
+        raise ValueError(f"{name} must be positive, got: {value}")
+
+
+def validate_threshold(value: float, name: str) -> None:
+    """Validate that a value is within [0.0, 1.0] range.
+
+    Args:
+        value: Value to validate
+        name: Parameter name for error message
+
+    Raises:
+        ValueError: If value is outside valid range
+    """
+    if not 0.0 <= value <= 1.0:
+        raise ValueError(f"{name} must be between 0.0 and 1.0, got: {value}")

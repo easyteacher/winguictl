@@ -183,6 +183,12 @@ def _build_action_parser(subparsers: argparse._SubParsersAction) -> None:
     scroll = sp.add_parser("scroll", help="Send mouse wheel scroll events.")
     scroll.add_argument("--direction", required=True, choices=["up", "down", "left", "right"], help="Scroll direction.")
     scroll.add_argument("--amount", type=int, default=1, help="Number of notches to scroll (default: 1).")
+    coord_group = scroll.add_mutually_exclusive_group(required=False)
+    coord_group.add_argument("--relative-x", type=int, help="X coordinate relative to window (requires --relative-y and --window-id)")
+    coord_group.add_argument("--absolute-x", type=int, help="Absolute screen X coordinate (requires --absolute-y)")
+    coord_group.add_argument("--element-id", help="UIA element ID (automation_id or runtime_id), scrolls at element center")
+    scroll.add_argument("--relative-y", type=int, help="Y coordinate relative to window (requires --relative-x and --window-id)")
+    scroll.add_argument("--absolute-y", type=int, help="Absolute screen Y coordinate (requires --absolute-x)")
     scroll.add_argument("--dry-run", action="store_true")
 
 
@@ -497,6 +503,7 @@ def _handle_find(args: argparse.Namespace) -> int:
     """Handle find subcommands."""
     from find_driver import FindDriver
     from ocr_driver import OCRDriver
+    from output_utils import validate_threshold
     from win32_utils import Win32API
 
     try:
@@ -527,6 +534,9 @@ def _handle_find(args: argparse.Namespace) -> int:
                 content = "\n".join(ElementFormatter.format_element(m) for m in result)
                 print(wrap_with_boundary(content, nonce))
             case "image":
+                validate_threshold(args.threshold, "--threshold")
+                if args.overlap_threshold is not None:
+                    validate_threshold(args.overlap_threshold, "--overlap-threshold")
                 result = FindDriver.find_image(
                     window_id=args.window_id,
                     image_path=args.image_path,
@@ -546,12 +556,16 @@ def _handle_find(args: argparse.Namespace) -> int:
 
 def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many-statements
     """Handle action subcommands."""
+    import win32api
+
     from find_driver import FindDriver
     from output_utils import (
         build_center_payload,
         build_point_context,
         resolve_window_context,
+        validate_coordinate_pair,
         validate_relative_coords,
+        validate_threshold,
     )
     from uia_driver import UIADriver
     from win32_utils import Win32API
@@ -565,8 +579,7 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                 is_element_mode = args.element_id is not None
 
                 if is_absolute_mode:
-                    if args.absolute_y is None:
-                        raise ValueError("--absolute-x requires --absolute-y")
+                    validate_coordinate_pair(args.absolute_x, args.absolute_y, "--absolute-x", "--absolute-y")
                     absolute_x = args.absolute_x
                     absolute_y = args.absolute_y
                     hwnd_result = Win32API.get_hwnd_from_point(absolute_x, absolute_y)
@@ -586,8 +599,7 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                     if relative_x is not None and relative_y is not None:
                         data["relative"] = {"x": relative_x, "y": relative_y}
                 elif is_relative_mode:
-                    if args.relative_y is None:
-                        raise ValueError("--relative-x requires --relative-y")
+                    validate_coordinate_pair(args.relative_x, args.relative_y, "--relative-x", "--relative-y")
                     if args.window_id is None:
                         raise ValueError("--window-id is required for relative coordinates")
                     unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
@@ -639,6 +651,7 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                 if args.window_id is None:
                     raise ValueError("--window-id is required for click-image")
                 unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
+                validate_threshold(args.threshold, "--threshold")
                 matches = FindDriver.find_image(window_id=args.window_id, image_path=args.image_path, threshold=args.threshold)
                 if not matches:
                     raise ValueError(f"image target not found: {args.image_path}")
@@ -665,8 +678,8 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                 is_relative_mode = args.relative_x1 is not None
 
                 if is_absolute_mode:
-                    if args.absolute_y1 is None or args.absolute_x2 is None or args.absolute_y2 is None:
-                        raise ValueError("--absolute-x1 requires --absolute-y1, --absolute-x2, --absolute-y2")
+                    validate_coordinate_pair(args.absolute_x1, args.absolute_y1, "--absolute-x1", "--absolute-y1")
+                    validate_coordinate_pair(args.absolute_x2, args.absolute_y2, "--absolute-x2", "--absolute-y2")
                     if args.window_id is not None:
                         unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
                     absolute_x1 = args.absolute_x1
@@ -688,8 +701,8 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                         "window_title": window_title,
                     }
                 elif is_relative_mode:
-                    if args.relative_y1 is None or args.relative_x2 is None or args.relative_y2 is None:
-                        raise ValueError("--relative-x1 requires --relative-y1, --relative-x2, --relative-y2")
+                    validate_coordinate_pair(args.relative_x1, args.relative_y1, "--relative-x1", "--relative-y1")
+                    validate_coordinate_pair(args.relative_x2, args.relative_y2, "--relative-x2", "--relative-y2")
                     if args.window_id is None:
                         raise ValueError("--window-id is required for relative coordinates")
                     unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
@@ -761,14 +774,101 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                     Win32API.send_press_key("{DELETE}")
                 emit_action_result("clear_text", args.dry_run, data)
             case "scroll":
-                if args.window_id is None:
-                    raise ValueError("--window-id is required for scroll")
-                unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
-                window_title = Win32API.get_window_text(args.window_id)
-                data = {"window_id": str(args.window_id), "window_title": window_title, "direction": args.direction, "amount": args.amount}
+                is_absolute_mode = args.absolute_x is not None
+                is_relative_mode = args.relative_x is not None
+                is_element_mode = args.element_id is not None
+                is_default_mode = not (is_absolute_mode or is_relative_mode or is_element_mode)
+
+                if is_absolute_mode:
+                    validate_coordinate_pair(args.absolute_x, args.absolute_y, "--absolute-x", "--absolute-y")
+                    absolute_x = args.absolute_x
+                    absolute_y = args.absolute_y
+                    hwnd_result = Win32API.get_hwnd_from_point(absolute_x, absolute_y)
+                    window_id = hwnd_result.value if hwnd_result.is_ok else None
+                    window_title = Win32API.get_window_text(window_id) if window_id else None
+                    bounds_result = Win32API.get_window_bounds(window_id) if window_id else Err("no window")
+                    window_bounds = bounds_result.value if bounds_result.is_ok else None
+                    relative_x = absolute_x - window_bounds.x if window_bounds else None
+                    relative_y = absolute_y - window_bounds.y if window_bounds else None
+                    point_ctx = build_point_context(absolute_x, absolute_y)
+                    data = {
+                        "direction": args.direction,
+                        "amount": args.amount,
+                        "absolute": {"x": absolute_x, "y": absolute_y},
+                        "window_id": str(window_id) if window_id else None,
+                        "window_title": window_title,
+                        **point_ctx,
+                    }
+                    if relative_x is not None and relative_y is not None:
+                        data["relative"] = {"x": relative_x, "y": relative_y}
+                elif is_relative_mode:
+                    validate_coordinate_pair(args.relative_x, args.relative_y, "--relative-x", "--relative-y")
+                    if args.window_id is None:
+                        raise ValueError("--window-id is required for relative coordinates")
+                    unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
+                    window_title, bounds = resolve_window_context(args.window_id)
+                    validate_relative_coords(args.relative_x, args.relative_y, bounds)
+                    relative_x = args.relative_x
+                    relative_y = args.relative_y
+                    absolute_x = bounds.x + args.relative_x
+                    absolute_y = bounds.y + args.relative_y
+                    point_ctx = build_point_context(absolute_x, absolute_y)
+                    data = {
+                        "direction": args.direction,
+                        "amount": args.amount,
+                        "window_id": str(args.window_id),
+                        "window_title": window_title,
+                        "relative": {"x": relative_x, "y": relative_y},
+                        **point_ctx,
+                    }
+                elif is_element_mode:
+                    if args.window_id is None:
+                        raise ValueError("--window-id is required for --element-id")
+                    unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
+                    window_title, bounds = resolve_window_context(args.window_id)
+                    wrapper = UIADriver._get_uia_wrapper(args.window_id, args.element_id)  # pylint: disable=protected-access
+                    element_info = wrapper.element_info
+                    rect = getattr(element_info, "rectangle", None)
+                    if rect is None or rect.right <= rect.left or rect.bottom <= rect.top:
+                        raise ValueError(f"Element has no valid bounding rectangle: {args.element_id}")
+                    absolute_x = (rect.left + rect.right) // 2
+                    absolute_y = (rect.top + rect.bottom) // 2
+                    relative_x = absolute_x - bounds.x
+                    relative_y = absolute_y - bounds.y
+                    point_ctx = build_point_context(absolute_x, absolute_y)
+                    data = {
+                        "direction": args.direction,
+                        "amount": args.amount,
+                        "window_id": str(args.window_id),
+                        "window_title": window_title,
+                        "element_id": args.element_id,
+                        "relative": {"x": relative_x, "y": relative_y},
+                        "absolute": {"x": absolute_x, "y": absolute_y},
+                        **point_ctx,
+                    }
+                elif is_default_mode:
+                    if args.window_id is None:
+                        raise ValueError("--window-id is required when no coordinates are specified")
+                    unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
+                    window_title, bounds = resolve_window_context(args.window_id)
+                    absolute_x = bounds.x + bounds.width // 2
+                    absolute_y = bounds.y + bounds.height // 2
+                    relative_x = bounds.width // 2
+                    relative_y = bounds.height // 2
+                    data = {
+                        "direction": args.direction,
+                        "amount": args.amount,
+                        "window_id": str(args.window_id),
+                        "window_title": window_title,
+                        "relative": {"x": relative_x, "y": relative_y},
+                        "absolute": {"x": absolute_x, "y": absolute_y},
+                    }
+                else:
+                    raise ValueError("invalid scroll parameters")
                 if not args.dry_run:
-                    WindowsDriver.focus_window(args.window_id)
-                    Win32API.move_mouse_to_window_center(args.window_id)
+                    if args.window_id:
+                        WindowsDriver.focus_window(args.window_id)
+                    win32api.SetCursorPos((absolute_x, absolute_y))
                     Win32API.send_scroll(args.direction, args.amount)
                 emit_action_result("scroll", args.dry_run, data)
             case _:

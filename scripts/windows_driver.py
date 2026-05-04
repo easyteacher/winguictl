@@ -21,6 +21,8 @@ import win32gui
 import win32process
 from pywinauto import Desktop
 from pywinauto.controls.hwndwrapper import HwndWrapper
+from pywinauto.findwindows import ElementNotFoundError
+from pywinauto.timings import TimeoutError as PywinautoTimeoutError
 from pywinauto.win32_element_info import HwndElementInfo
 
 from models import Bounds, WindowInfo
@@ -68,6 +70,12 @@ class WindowsDriver:
             wrapper = WindowsDriver._wrap(window_id)
             getattr(wrapper, action_name)(**kwargs)
             return True
+        except ElementNotFoundError:
+            _logger.warning("window not found for action %s: window_id=%s", action_name, window_id)
+            return False
+        except PywinautoTimeoutError:
+            _logger.warning("timeout during window action %s for window_id=%s", action_name, window_id)
+            return False
         except Exception:  # pylint: disable=broad-exception-caught
             _logger.exception("window action %s failed for window_id=%s", action_name, window_id)
             return False
@@ -178,7 +186,14 @@ class WindowsDriver:
             rect = wrapper.rectangle()
             wrapper.move_window(x=rect.left, y=rect.top, width=width, height=height)
             return True
+        except ElementNotFoundError:
+            _logger.warning("window not found for resize: window_id=%s", window_id)
+            return False
+        except PywinautoTimeoutError:
+            _logger.warning("timeout during window resize for window_id=%s", window_id)
+            return False
         except Exception:  # pylint: disable=broad-exception-caught
+            _logger.exception("resize failed for window_id=%s", window_id)
             return False
 
     @staticmethod

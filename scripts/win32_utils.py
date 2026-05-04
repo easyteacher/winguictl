@@ -33,7 +33,7 @@ from constants import (
     SENDINPUT_ABSOLUTE_MAX,
     VK_CODE_MAP,
 )
-from models import Bounds
+from models import Bounds, Err, Ok, Result
 
 _logger = logging.getLogger(__name__)
 
@@ -130,7 +130,7 @@ class Win32API:
         return current
 
     @staticmethod
-    def get_hwnd_from_point(x: int, y: int) -> Optional[int]:
+    def get_hwnd_from_point(x: int, y: int) -> Result[int, str]:
         """Get window handle at the specified screen coordinates.
 
         Args:
@@ -138,37 +138,35 @@ class Win32API:
             y: Absolute Y coordinate on screen
 
         Returns:
-            Window handle at the point, or None if not found
+            Ok(hwnd) if found, Err(message) otherwise
         """
         try:
             hwnd = win32gui.WindowFromPoint((x, y))
-            return hwnd if hwnd else None
+            if hwnd:
+                return Ok(hwnd)
+            return Err(f"no window at point ({x}, {y})")
         except win32gui.error as err:
-            _logger.warning("Win32 error getting window from point (%d, %d): %s", x, y, err)
-            return None
-        except Exception:  # pylint: disable=broad-exception-caught
-            _logger.exception("Unexpected error getting window from point (%d, %d)", x, y)
-            return None
+            return Err(f"win32 error getting window from point ({x}, {y}): {err}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            return Err(f"unexpected error getting window from point ({x}, {y}): {e}")
 
     @staticmethod
-    def get_window_bounds(hwnd: int) -> Optional[Bounds]:
+    def get_window_bounds(hwnd: int) -> Result[Bounds, str]:
         """Get window screen coordinates and dimensions.
 
         Args:
             hwnd: Window handle
 
         Returns:
-            Bounds object or None on failure
+            Ok(Bounds) on success, Err(message) on failure
         """
         try:
             left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+            return Ok(Bounds.from_ltrb(left, top, right, bottom))
         except win32gui.error as err:
-            _logger.warning("Win32 error getting window bounds for hwnd %d: %s", hwnd, err)
-            return None
-        except Exception:  # pylint: disable=broad-exception-caught
-            _logger.exception("Unexpected error getting window bounds for hwnd %d", hwnd)
-            return None
-        return Bounds.from_ltrb(left, top, right, bottom)
+            return Err(f"win32 error getting window bounds for hwnd {hwnd}: {err}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            return Err(f"unexpected error getting window bounds for hwnd {hwnd}: {e}")
 
     @staticmethod
     def get_window_state(hwnd: int) -> tuple[bool, bool]:
@@ -264,6 +262,9 @@ class Win32API:
         """Perform a left mouse button click at the specified screen coordinates.
 
         Uses SendInput API for better DPI scaling and multi-monitor support.
+
+        Raises:
+            RuntimeError: If SendInput fails to inject all inputs (possible UIPI restriction)
         """
         width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
         height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
@@ -284,13 +285,20 @@ class Win32API:
         inputs[2].union.mi.dy = ny
         inputs[2].union.mi.dwFlags = MOUSEEVENTF_LEFTUP | MOUSEEVENTF_ABSOLUTE
 
-        ctypes.windll.user32.SendInput(3, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+        sent = ctypes.windll.user32.SendInput(3, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+        if sent != 3:
+            _logger.warning("SendClick: SendInput only sent %d of 3 inputs (error: %d)", sent, ctypes.get_last_error())
 
     @staticmethod
     def send_drag(x1: int, y1: int, x2: int, y2: int, duration_ms: int = 500) -> None:
         """Drag from (x1,y1) to (x2,y2), moving smoothly over the specified duration.
 
         Uses SendInput API for better DPI scaling and multi-monitor support.
+
+        Note:
+            SendInput failures are logged as warnings but do not raise exceptions,
+            as partial failures (e.g., only some intermediate move events) may still
+            result in acceptable behavior for drag operations.
         """
         width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
         height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
@@ -312,7 +320,9 @@ class Win32API:
         inputs[1].union.mi.dx = start_x
         inputs[1].union.mi.dy = start_y
         inputs[1].union.mi.dwFlags = MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_ABSOLUTE
-        ctypes.windll.user32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+        sent = ctypes.windll.user32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+        if sent != 2:
+            _logger.warning("SendDrag: Initial SendInput only sent %d of 2 inputs", sent)
         time.sleep(DEFAULT_DRAG_START_DELAY_MS / 1000)
 
         for i in range(1, steps + 1):
@@ -342,7 +352,9 @@ class Win32API:
         up_input.union.mi.dx = end_x
         up_input.union.mi.dy = end_y
         up_input.union.mi.dwFlags = MOUSEEVENTF_LEFTUP | MOUSEEVENTF_ABSOLUTE
-        ctypes.windll.user32.SendInput(1, ctypes.byref(up_input), ctypes.sizeof(INPUT))
+        sent = ctypes.windll.user32.SendInput(1, ctypes.byref(up_input), ctypes.sizeof(INPUT))
+        if sent != 1:
+            _logger.warning("SendDrag: Final SendInput (button up) failed")
 
     @staticmethod
     def move_mouse_to_window_center(window_id: int) -> None:
@@ -351,9 +363,10 @@ class Win32API:
         Args:
             window_id: Window handle
         """
-        bounds = Win32API.get_window_bounds(window_id)
-        if bounds is None:
+        bounds_result = Win32API.get_window_bounds(window_id)
+        if bounds_result.is_err:
             return
+        bounds = bounds_result.value
         center_x = bounds.x + bounds.width // 2
         center_y = bounds.y + bounds.height // 2
         win32api.SetCursorPos((center_x, center_y))
@@ -420,15 +433,16 @@ class Win32API:
         win32gui.SetFocus(hwnd)
 
     @staticmethod
-    def validate_window_id(window_id: int) -> None:
+    def validate_window_id(window_id: int) -> Result[Bounds, str]:
         """Validate that window_id refers to a valid window.
 
         Args:
             window_id: Window handle to validate
 
-        Raises:
-            ValueError: If window_id is not a valid window handle
+        Returns:
+            Ok(Bounds) if valid, Err(message) if invalid
         """
-        bounds = Win32API.get_window_bounds(window_id)
-        if bounds is None:
-            raise ValueError(f"window not found: {window_id}")
+        result = Win32API.get_window_bounds(window_id)
+        if result.is_err:
+            return Err(f"window not found: {window_id}")
+        return result

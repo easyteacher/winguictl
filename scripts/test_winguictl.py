@@ -383,3 +383,473 @@ class TestWin32API:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestWaitUtils:
+    """Tests for WaitUtils class."""
+
+    def test_check_window_exists_found(self):
+        """Test check_window_exists when window is found."""
+        from wait_utils import WaitUtils
+        from models import WindowInfo, Bounds
+
+        mock_windows = [
+            WindowInfo(
+                window_id="12345",
+                title="Test Window",
+                bounds=Bounds(x=0, y=0, width=800, height=600),
+                process_id=1234,
+                process_name="test.exe",
+            )
+        ]
+
+        with patch("wait_utils.WindowsDriver.list_windows", return_value=mock_windows):
+            with patch("wait_utils.Win32API.get_class_name", return_value="TestClass"):
+                result = WaitUtils.check_window_exists("Test Window", exact=True)
+                assert result is not None
+                assert result["window_id"] == "12345"
+                assert result["title"] == "Test Window"
+
+    def test_check_window_exists_not_found(self):
+        """Test check_window_exists when window is not found."""
+        from wait_utils import WaitUtils
+
+        with patch("wait_utils.WindowsDriver.list_windows", return_value=[]):
+            result = WaitUtils.check_window_exists("Nonexistent", exact=True)
+            assert result is None
+
+    def test_check_window_exists_partial_match(self):
+        """Test check_window_exists with partial match."""
+        from wait_utils import WaitUtils
+        from models import WindowInfo, Bounds
+
+        mock_windows = [
+            WindowInfo(
+                window_id="12345",
+                title="Test Window - App",
+                bounds=Bounds(x=0, y=0, width=800, height=600),
+                process_id=1234,
+                process_name="test.exe",
+            )
+        ]
+
+        with patch("wait_utils.WindowsDriver.list_windows", return_value=mock_windows):
+            with patch("wait_utils.Win32API.get_class_name", return_value="TestClass"):
+                result = WaitUtils.check_window_exists("Test Window", exact=False)
+                assert result is not None
+
+    def test_check_text_exists_found(self):
+        """Test check_text_exists when text is found."""
+        from wait_utils import WaitUtils
+
+        with patch("wait_utils.FindDriver.find_text", return_value="  Found Text  "):
+            result = WaitUtils.check_text_exists(12345, "Found", exact=False)
+            assert result == "Found Text"
+
+    def test_check_text_exists_not_found(self):
+        """Test check_text_exists when text is not found."""
+        from wait_utils import WaitUtils
+
+        with patch("wait_utils.FindDriver.find_text", return_value=""):
+            result = WaitUtils.check_text_exists(12345, "NotThere", exact=False)
+            assert result is None
+
+    def test_check_uia_exists_found(self):
+        """Test check_uia_exists when element is found."""
+        from wait_utils import WaitUtils
+
+        with patch("wait_utils.FindDriver.find_uia", return_value="  Element Info  "):
+            result = WaitUtils.check_uia_exists(12345, text="Button")
+            assert result == "Element Info"
+
+    def test_check_uia_exists_not_found(self):
+        """Test check_uia_exists when element is not found."""
+        from wait_utils import WaitUtils
+
+        with patch("wait_utils.FindDriver.find_uia", return_value=""):
+            result = WaitUtils.check_uia_exists(12345, text="Nonexistent")
+            assert result is None
+
+    def test_check_ocr_exists_found(self):
+        """Test check_ocr_exists when text is found."""
+        from wait_utils import WaitUtils
+        from models import ElementInfo, Bounds
+
+        mock_matches = [
+            ElementInfo(
+                element_id="ocr1",
+                window_id="12345",
+                text="Found",
+                bounds=Bounds(x=100, y=100, width=50, height=20),
+            )
+        ]
+
+        with patch("wait_utils.OCRDriver.find_ocr_text", return_value=mock_matches):
+            result = WaitUtils.check_ocr_exists(12345, "Found", exact=False)
+            assert len(result) == 1
+            assert result[0].text == "Found"
+
+    def test_check_ocr_exists_not_found(self):
+        """Test check_ocr_exists when text is not found."""
+        from wait_utils import WaitUtils
+
+        with patch("wait_utils.OCRDriver.find_ocr_text", return_value=[]):
+            result = WaitUtils.check_ocr_exists(12345, "NotThere", exact=False)
+            assert result == []
+
+    def test_check_image_exists_found(self):
+        """Test check_image_exists when image is found."""
+        from wait_utils import WaitUtils
+        from models import ElementInfo, Bounds
+
+        mock_matches = [
+            ElementInfo(
+                element_id="img1",
+                window_id="12345",
+                text="",
+                bounds=Bounds(x=100, y=100, width=50, height=50),
+            )
+        ]
+
+        with patch("wait_utils.FindDriver.find_image", return_value=mock_matches):
+            result = WaitUtils.check_image_exists(12345, "button.png", threshold=0.9)
+            assert len(result) == 1
+
+    def test_check_image_exists_not_found(self):
+        """Test check_image_exists when image is not found."""
+        from wait_utils import WaitUtils
+
+        with patch("wait_utils.FindDriver.find_image", return_value=[]):
+            result = WaitUtils.check_image_exists(12345, "nonexistent.png")
+            assert result == []
+
+
+class TestPollResult:
+    """Tests for PollResult class."""
+
+    def test_poll_result_found(self):
+        """Test PollResult when condition is met."""
+        from wait_utils import PollResult
+
+        result = PollResult(found=True, data="test data", elapsed_ms=500)
+        assert result.found is True
+        assert result.data == "test data"
+        assert result.elapsed_ms == 500
+        assert result.timed_out is False
+
+    def test_poll_result_timeout(self):
+        """Test PollResult when timeout occurs."""
+        from wait_utils import PollResult
+
+        result = PollResult(found=False, elapsed_ms=30000, timed_out=True)
+        assert result.found is False
+        assert result.data is None
+        assert result.timed_out is True
+
+
+class TestWaitUtilsPoll:
+    """Tests for WaitUtils polling methods."""
+
+    def test_poll_condition_found(self):
+        """Test poll_condition when condition is met immediately."""
+        from wait_utils import WaitUtils
+
+        check_count = [0]
+
+        def check_fn():
+            check_count[0] += 1
+            return "found"
+
+        result = WaitUtils.poll_condition(check_fn, timeout_sec=5.0, interval_sec=0.1)
+        assert result.found is True
+        assert result.data == "found"
+        assert check_count[0] == 1
+
+    def test_poll_condition_timeout(self):
+        """Test poll_condition when timeout occurs."""
+        from wait_utils import WaitUtils
+
+        def check_fn():
+            return None
+
+        result = WaitUtils.poll_condition(check_fn, timeout_sec=0.3, interval_sec=0.1)
+        assert result.found is False
+        assert result.timed_out is True
+
+    def test_poll_condition_disappear(self):
+        """Test poll_condition with disappear=True."""
+        from wait_utils import WaitUtils
+
+        check_count = [0]
+
+        def check_fn():
+            check_count[0] += 1
+            if check_count[0] < 3:
+                return "still here"
+            return None
+
+        result = WaitUtils.poll_condition(check_fn, timeout_sec=5.0, interval_sec=0.01, disappear=True)
+        assert result.found is True
+        assert result.data is None
+
+    def test_poll_list_condition_found(self):
+        """Test poll_list_condition when items are found."""
+        from wait_utils import WaitUtils
+        from models import ElementInfo, Bounds
+
+        mock_matches = [
+            ElementInfo(
+                element_id="1",
+                window_id="12345",
+                text="Match",
+                bounds=Bounds(x=0, y=0, width=10, height=10),
+            )
+        ]
+
+        result = WaitUtils.poll_list_condition(
+            lambda: mock_matches, timeout_sec=5.0, interval_sec=0.1
+        )
+        assert result.found is True
+        assert len(result.data) == 1
+
+    def test_poll_list_condition_disappear(self):
+        """Test poll_list_condition with disappear=True."""
+        from wait_utils import WaitUtils
+
+        check_count = [0]
+
+        def check_fn():
+            check_count[0] += 1
+            if check_count[0] < 2:
+                return ["item"]
+            return []
+
+        result = WaitUtils.poll_list_condition(check_fn, timeout_sec=5.0, interval_sec=0.01, disappear=True)
+        assert result.found is True
+
+
+class TestWaitCLI:
+    """Tests for wait command CLI argument parsing."""
+
+    def test_wait_sleep_command(self):
+        from winguictl import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["wait", "sleep", "1000"])
+        assert args.command == "wait"
+        assert args.wait_command == "sleep"
+        assert args.duration_ms == 1000
+
+    def test_wait_window_command(self):
+        from winguictl import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["wait", "window", "Notepad", "--timeout", "10"])
+        assert args.command == "wait"
+        assert args.wait_command == "window"
+        assert args.title == "Notepad"
+        assert args.timeout == 10.0
+
+    def test_wait_window_exact_flag(self):
+        from winguictl import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["wait", "window", "Notepad", "--exact"])
+        assert args.exact is True
+
+    def test_wait_window_disappear_flag(self):
+        from winguictl import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["wait", "window", "Notepad", "--disappear"])
+        assert args.disappear is True
+
+    def test_wait_text_command(self):
+        from winguictl import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["wait", "--window-id", "12345", "text", "Hello", "--timeout", "5"])
+        assert args.command == "wait"
+        assert args.wait_command == "text"
+        assert args.window_id == 12345
+        assert args.text == "Hello"
+        assert args.timeout == 5.0
+
+    def test_wait_uia_command(self):
+        from winguictl import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args([
+            "wait", "--window-id", "12345", "uia",
+            "--text", "Button",
+            "--control-type", "Button",
+            "--automation-id", "btn1"
+        ])
+        assert args.command == "wait"
+        assert args.wait_command == "uia"
+        assert args.window_id == 12345
+        assert args.text == "Button"
+        assert args.control_type == "Button"
+        assert args.automation_id == "btn1"
+
+    def test_wait_ocr_command(self):
+        from winguictl import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args([
+            "wait", "--window-id", "12345", "ocr", "Text",
+            "--confidence-threshold", "0.8"
+        ])
+        assert args.command == "wait"
+        assert args.wait_command == "ocr"
+        assert args.text == "Text"
+        assert args.confidence_threshold == 0.8
+
+    def test_wait_image_command(self):
+        from winguictl import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args([
+            "wait", "--window-id", "12345", "image",
+            "--image-path", "button.png",
+            "--threshold", "0.95"
+        ])
+        assert args.command == "wait"
+        assert args.wait_command == "image"
+        assert args.image_path == "button.png"
+        assert args.threshold == 0.95
+
+
+class TestClipboardDriver:
+    """Tests for ClipboardDriver class."""
+
+    def test_copy_text_to_clipboard_success(self):
+        """Test copy_text_to_clipboard succeeds."""
+        from clipboard_driver import ClipboardDriver
+
+        with patch("clipboard_driver.win32clipboard"):
+            with patch("clipboard_driver.pywintypes"):
+                result = ClipboardDriver.copy_text_to_clipboard("test text")
+                assert result is True
+
+    def test_copy_text_to_clipboard_none(self):
+        """Test copy_text_to_clipboard with None text."""
+        from clipboard_driver import ClipboardDriver
+
+        result = ClipboardDriver.copy_text_to_clipboard(None)
+        assert result is False
+
+    def test_copy_files_to_clipboard_success(self):
+        """Test copy_files_to_clipboard succeeds."""
+        from clipboard_driver import ClipboardDriver
+
+        with patch("clipboard_driver.win32clipboard"):
+            with patch("clipboard_driver.pywintypes"):
+                result = ClipboardDriver.copy_files_to_clipboard(["C:\\file1.txt", "C:\\file2.txt"])
+                assert result is True
+
+    def test_copy_files_to_clipboard_empty(self):
+        """Test copy_files_to_clipboard with empty list."""
+        from clipboard_driver import ClipboardDriver
+
+        result = ClipboardDriver.copy_files_to_clipboard([])
+        assert result is False
+
+    def test_get_text_from_clipboard_success(self):
+        """Test get_text_from_clipboard returns text."""
+        from clipboard_driver import ClipboardDriver
+
+        with patch("clipboard_driver.win32clipboard.OpenClipboard"):
+            with patch("clipboard_driver.win32clipboard.CloseClipboard"):
+                with patch("clipboard_driver.win32clipboard.IsClipboardFormatAvailable", return_value=True):
+                    with patch("clipboard_driver.win32clipboard.GetClipboardData", return_value="clipboard text"):
+                        result = ClipboardDriver.get_text_from_clipboard()
+                        assert result == "clipboard text"
+
+    def test_get_text_from_clipboard_no_text(self):
+        """Test get_text_from_clipboard when no text available."""
+        from clipboard_driver import ClipboardDriver
+
+        with patch("clipboard_driver.win32clipboard.OpenClipboard"):
+            with patch("clipboard_driver.win32clipboard.CloseClipboard"):
+                with patch("clipboard_driver.win32clipboard.IsClipboardFormatAvailable", return_value=False):
+                    result = ClipboardDriver.get_text_from_clipboard()
+                    assert result is None
+
+
+class TestClipboardCLI:
+    """Tests for clipboard command CLI argument parsing."""
+
+    def test_clipboard_copy_text_command(self):
+        from winguictl import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["clipboard", "copy-text", "Hello World"])
+        assert args.command == "clipboard"
+        assert args.clipboard_command == "copy-text"
+        assert args.text == "Hello World"
+
+    def test_clipboard_copy_files_command(self):
+        from winguictl import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["clipboard", "copy-files", "C:\\file1.txt", "C:\\file2.txt"])
+        assert args.command == "clipboard"
+        assert args.clipboard_command == "copy-files"
+        assert args.files == ["C:\\file1.txt", "C:\\file2.txt"]
+
+    def test_clipboard_get_text_command(self):
+        from winguictl import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["clipboard", "get-text"])
+        assert args.command == "clipboard"
+        assert args.clipboard_command == "get-text"
+
+
+class TestPreprocessWindowId:
+    """Tests for _preprocess_window_id function."""
+
+    def test_preprocess_window_id_at_start(self):
+        from winguictl import _preprocess_window_id
+
+        argv = ["--window-id", "12345", "window", "focus"]
+        result = _preprocess_window_id(argv)
+        assert result[0] == "window"
+        assert result[1] == "--window-id"
+        assert result[2] == "12345"
+        assert result[3] == "focus"
+
+    def test_preprocess_window_id_at_end(self):
+        from winguictl import _preprocess_window_id
+
+        argv = ["window", "focus", "--window-id", "12345"]
+        result = _preprocess_window_id(argv)
+        assert result[0] == "window"
+        assert result[1] == "--window-id"
+        assert result[2] == "12345"
+
+    def test_preprocess_window_id_with_equals(self):
+        from winguictl import _preprocess_window_id
+
+        argv = ["--window-id=12345", "window", "focus"]
+        result = _preprocess_window_id(argv)
+        assert result[0] == "window"
+        assert result[1] == "--window-id"
+        assert result[2] == "12345"
+
+    def test_preprocess_window_id_no_window_id(self):
+        from winguictl import _preprocess_window_id
+
+        argv = ["window", "list"]
+        result = _preprocess_window_id(argv)
+        assert result == argv
+
+    def test_preprocess_window_id_wait_command(self):
+        from winguictl import _preprocess_window_id
+
+        argv = ["--window-id", "12345", "wait", "uia", "--text", "Button"]
+        result = _preprocess_window_id(argv)
+        assert result[0] == "wait"
+        assert result[1] == "--window-id"
+        assert result[2] == "12345"

@@ -239,7 +239,7 @@ class Win32Driver:
         return ListBoxWrapper(hwnd).selected_indices()
 
     @staticmethod
-    def snapshot_hwnd_tree(window_id: int) -> str:
+    def snapshot_hwnd_tree(window_id: int, max_depth: Optional[int] = None) -> str:
         """Generate an HWND control tree snapshot for the window.
 
         Traverses the target window and all its descendant controls,
@@ -248,6 +248,11 @@ class Win32Driver:
 
         Uses iterative DFS with an explicit stack to avoid RecursionError
         on deeply nested control trees.
+
+        Args:
+            window_id: Target window handle
+            max_depth: Maximum tree depth to traverse (default: unlimited).
+                       The root window is at depth 0. Set to 1 for only direct children.
 
         Note:
             Uses win32gui.EnumChildWindows to enumerate only direct children
@@ -299,7 +304,8 @@ class Win32Driver:
 
             lines.append(ElementFormatter.format_hwnd(hwnd, text, cls, visible, enabled, control_id, level, control_type, rect_tuple))
 
-            for child_hwnd in reversed(_get_direct_child_hwnds(hwnd)):
-                stack.append((child_hwnd, level + 1))
+            if max_depth is None or level < max_depth:
+                for child_hwnd in reversed(_get_direct_child_hwnds(hwnd)):
+                    stack.append((child_hwnd, level + 1))
 
         return "\n".join(lines)

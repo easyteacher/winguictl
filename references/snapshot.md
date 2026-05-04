@@ -12,6 +12,20 @@ For coordinate system details, see [Coordinate Systems](coordinates.md).
 python scripts\winguictl.py snapshot --window-id <window_id> hwnd
 ```
 
+### Depth Limit
+
+Limit the tree traversal depth to reduce output size for large windows:
+
+```powershell
+# Only show the root window and its direct children
+python scripts\winguictl.py snapshot --window-id <window_id> hwnd --max-depth 1
+
+# Show up to 3 levels deep
+python scripts\winguictl.py snapshot --window-id <window_id> hwnd --max-depth 3
+```
+
+The root window is at depth 0, its direct children are at depth 1, and so on.
+
 Output includes:
 - `hwnd` - Control handle
 - `class` - Window class name
@@ -36,6 +50,20 @@ Output example:
 # Output the UIA tree structure of a window
 python scripts\winguictl.py snapshot --window-id <window_id> uia
 ```
+
+### Depth Limit
+
+Limit the tree traversal depth to reduce output size for large windows (especially useful for complex applications like WeChat):
+
+```powershell
+# Only show the root window and its direct children
+python scripts\winguictl.py snapshot --window-id <window_id> uia --max-depth 1
+
+# Show up to 3 levels deep
+python scripts\winguictl.py snapshot --window-id <window_id> uia --max-depth 3
+```
+
+The root window is at depth 0, its direct children are at depth 1, and so on.
 
 ### Performance Options
 

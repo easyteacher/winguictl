@@ -710,7 +710,7 @@ class UIADriver:
         iface.Rotate(degrees)
 
     @staticmethod
-    def snapshot_uia_tree(window_id: int, skip_actions: bool = False, skip_state: bool = False) -> str:
+    def snapshot_uia_tree(window_id: int, skip_actions: bool = False, skip_state: bool = False, max_depth: Optional[int] = None) -> str:
         """Generate a UIA element tree snapshot for the window.
 
         Iteratively traverses all UIA child elements of the target window using a stack,
@@ -721,6 +721,8 @@ class UIADriver:
             window_id: Target window handle
             skip_actions: If True, skip collecting supported actions (faster for Qt apps)
             skip_state: If True, skip collecting element state (faster for Qt apps)
+            max_depth: Maximum tree depth to traverse (default: unlimited).
+                       The root window is at depth 0. Set to 1 for only direct children.
 
         Note:
             Uses iter_children() which yields children one at a time via TreeWalker.
@@ -766,11 +768,12 @@ class UIADriver:
             actions = [] if skip_actions else get_supported_actions(info)
             elem_state = {} if skip_state else get_element_state(info)
             lines.append(ElementFormatter.format_uia(info, level, win_x, win_y, supported_actions=actions, state=elem_state))
-            try:
-                for child in element.iter_children():
-                    stack.appendleft((child, level + 1))
-            except Exception:  # pylint: disable=broad-exception-caught
-                _logger.exception("iter_children() failed for element")
+            if max_depth is None or level < max_depth:
+                try:
+                    for child in element.iter_children():
+                        stack.appendleft((child, level + 1))
+                except Exception:  # pylint: disable=broad-exception-caught
+                    _logger.exception("iter_children() failed for element")
 
         result_lines: list[str] = []
         warning = _check_duplicate_automation_ids(automation_ids)

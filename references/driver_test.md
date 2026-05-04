@@ -34,16 +34,6 @@ Output example:
 - "Untitled - Notepad" [window_id="533514" bounds=(78,78 894x805) pid="37836" process="Notepad.exe"]
 ```
 
-### Debug Mode
-
-Use `--verbose` or `-v` to enable debug logging for troubleshooting:
-
-```powershell
-python scripts\winguictl.py --verbose window list
-```
-
-This outputs detailed diagnostic information to stderr, including timestamps, log levels, and debug messages from drivers.
-
 ---
 
 ## Window Management Tests

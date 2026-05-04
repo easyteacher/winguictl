@@ -41,7 +41,7 @@ scripts/
 ## Logging
 
 - Configure logging in CLI entry point
-- Levels: `DEBUG` (verbose), `INFO`, `WARNING` (default), `ERROR`
+- Levels: `DEBUG` (default), `INFO`, `WARNING`, `ERROR`
 - Log to stderr, output results to stdout
 - Use lazy % formatting for performance
 
@@ -79,10 +79,15 @@ Use `Bounds.from_rect()` consistently instead of manual construction. This ensur
 ### Unified Element ID Generation
 
 Use a single helper function for element ID generation with documented priority order:
-1. handle (if available and non-zero)
-2. runtime_id (if available)
-3. control_id (if available)
-4. fallback to id(info)
+1. runtime_id (if available and non-zero; UIAElementInfo returns 0 on COMError)
+2. automation_id (if available and non-empty; may have duplicates in Qt apps)
+3. handle with `uia-hwnd-` prefix (if available and non-zero)
+4. control_id with `uia-` prefix (if available)
+5. fallback to `uia-{id(info)}`
+
+Note: `runtime_id` is preferred over `automation_id` because automation_id may have
+duplicates, especially in Qt applications. Handles use `uia-hwnd-` prefix because a plain
+hwnd string would be misinterpreted as an automation_id by `_get_uia_wrapper()`.
 
 ## Resource Management
 
@@ -170,6 +175,7 @@ Usage pattern:
   2. Build context info (window_id, window_title, etc.) inside the try block
   3. Emit errors with context via `emit_action(False, verb, {..., "error": str(e)})`
   4. Return 1 on error (0 on success, -1 for unknown subcommands)
+- **All except blocks must log**: Never silently swallow exceptions with `except ... pass`. All `except` blocks (including specific exception types like `AttributeError`, `TypeError`) must include `_logger.warning()` (or `_logger.debug()` for expected/low-impact cases) with the exception details for diagnosability
 
 ## Input Validation
 

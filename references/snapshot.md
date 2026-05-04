@@ -42,6 +42,7 @@ Output includes:
 - `class` - Window class name
 - `automation_id` - Automation ID
 - `runtime_id` - Runtime ID
+- `supported_actions` - Supported uia-control actions (derived from UIA patterns)
 - `relative_rect` - Control rectangle area (window-relative coordinates)
 - `control_id` - Control ID (if available)
 
@@ -99,7 +100,7 @@ OCR captures all visible text from the target window, which may include sensitiv
 | Subcommand | Description | Output Content |
 |--------|------|----------|
 | `hwnd` | Win32 HWND tree | hwnd, class, control_type, visible, text, control_id |
-| `uia` | UIA tree | control_type, class, automation_id, runtime_id, relative_rect, control_id |
+| `uia` | UIA tree | control_type, class, automation_id, runtime_id, supported_actions, relative_rect, control_id |
 | `ocr` | OCR text | text, relative_rect, confidence |
 
 ## Dependencies

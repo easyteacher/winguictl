@@ -23,29 +23,43 @@ Action operations may change the UI state (such as window content, element statu
 
 Operate on controls via their HWND handles. Use `snapshot hwnd` to obtain the control's `hwnd`.
 
-```powershell
-# Click a control
-python scripts\winguictl.py control --hwnd <hwnd> click
+### Click a control
 
-# Get control text
+```powershell
+python scripts\winguictl.py control --hwnd <hwnd> click
+```
+
+### Get/Set Text
+
+```powershell
 python scripts\winguictl.py control --hwnd <hwnd> get-text
 
-# Set control text
 python scripts\winguictl.py control --hwnd <hwnd> set-text "New Text"
+```
 
-# Check/uncheck a checkbox or radio button
+### Check/Uncheck
+
+```powershell
 python scripts\winguictl.py control --hwnd <hwnd> check
+
 python scripts\winguictl.py control --hwnd <hwnd> uncheck
+```
 
-# Check/uncheck with event notification (triggers BN_CLICKED/WM_COMMAND)
+### Check/Uncheck by Click
+
+```powershell
 python scripts\winguictl.py control --hwnd <hwnd> check-by-click
-python scripts\winguictl.py control --hwnd <hwnd> uncheck-by-click
 
-# Select an item in a combobox or listbox
+python scripts\winguictl.py control --hwnd <hwnd> uncheck-by-click
+```
+
+### Combo/List Select
+
+```powershell
 python scripts\winguictl.py control --hwnd <hwnd> combo-select 0
+
 python scripts\winguictl.py control --hwnd <hwnd> combo-select "Option 1"
 
-# Get the number of items in a combobox or listbox
 python scripts\winguictl.py control --hwnd <hwnd> combo-items
 ```
 
@@ -80,35 +94,64 @@ python scripts\winguictl.py control --hwnd <hwnd> combo-items
 Operate on elements via UIA automation_id or runtime_id. Use `snapshot uia` to obtain the element's `automation_id` or `runtime_id`.
 
 ```powershell
-# Click a UIA element (using automation_id)
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Button1" click
 
-# Click a UIA element (using runtime_id)
 python scripts\winguictl.py uia-control --window-id <id> --element-id "42-123456" click
+```
 
-# Get element text
+### Get Text
+
+```powershell
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Button1" get-text
+```
 
-# Set element value (for editable controls)
+### Set Value
+
+```powershell
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Edit1" set-value "New Text"
+```
 
-# Expand/collapse a node (for TreeItem, ComboBox, MenuItem, etc.)
+### Expand/Collapse
+
+```powershell
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Node1" expand
+
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Node1" collapse
+```
 
-# Scroll a scrollable element
+### Scroll
+
+```powershell
 python scripts\winguictl.py uia-control --window-id <id> --element-id "List1" scroll down --amount page --count 3
+```
 
-# Type keys to a UIA element
+### Type Keys
+
+```powershell
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Edit1" type-keys "{ENTER}"
+```
 
-# Set slider value
+### Slider
+
+```powershell
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Slider1" slider-set 50
+```
 
-# Select a UIA element
+### Select
+
+```powershell
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Item1" select
+```
 
-# Get toggle state (for CheckBox, etc.)
+### Is Selected
+
+```powershell
+python scripts\winguictl.py uia-control --window-id <id> --element-id "Item1" is-selected
+```
+
+### Get Toggle State
+
+```powershell
 python scripts\winguictl.py uia-control --window-id <id> --element-id "Check1" get-toggle-state
 ```
 
@@ -125,11 +168,16 @@ python scripts\winguictl.py uia-control --window-id <id> --element-id "Check1" g
 - `automation_id` may have duplicates, especially in Qt applications where multiple controls can share the same automation_id
 
 Example:
-```powershell
-# Preferred: use runtime_id
-python scripts\winguictl.py uia-control --window-id 12345 --element-id "42-3155764" click
 
-# Not recommended: automation_id may not be unique
+#### Preferred: Use runtime_id
+
+```powershell
+python scripts\winguictl.py uia-control --window-id 12345 --element-id "42-3155764" click
+```
+
+#### Not Recommended: automation_id May Not Be Unique
+
+```powershell
 python scripts\winguictl.py uia-control --window-id 12345 --element-id "SubmitButton" click
 ```
 
@@ -149,6 +197,7 @@ python scripts\winguictl.py uia-control --window-id 12345 --element-id "SubmitBu
 | `toggle` | Toggle element state | `--window-id`, `--element-id` |
 | `get-toggle-state` | Get toggle state (0=off, 1=on, 2=indeterminate) | `--window-id`, `--element-id` |
 | `select` | Select element | `--window-id`, `--element-id` |
+| `is-selected` | Check if element is selected | `--window-id`, `--element-id` |
 | `expand` | Expand node (TreeItem, ComboBox, MenuItem) | `--window-id`, `--element-id` |
 | `collapse` | Collapse node (TreeItem, ComboBox, MenuItem) | `--window-id`, `--element-id` |
 | `is-expanded` | Check if element is expanded | `--window-id`, `--element-id` |
@@ -167,6 +216,14 @@ python scripts\winguictl.py uia-control --window-id 12345 --element-id "SubmitBu
 | `slider-set` | Set slider value | `--window-id`, `--element-id`, `value` (positional) |
 | `slider-min` | Get slider minimum | `--window-id`, `--element-id` |
 | `slider-max` | Get slider maximum | `--window-id`, `--element-id` |
+| `window-close` | Close window (WindowPattern) | `--window-id`, `--element-id` |
+| `window-minimize` | Minimize window (WindowPattern) | `--window-id`, `--element-id` |
+| `window-maximize` | Maximize window (WindowPattern) | `--window-id`, `--element-id` |
+| `window-restore` | Restore window to normal (WindowPattern) | `--window-id`, `--element-id` |
+| `window-state` | Get window visual state (WindowPattern) | `--window-id`, `--element-id` |
+| `transform-move` | Move element to screen coordinates (TransformPattern) | `--window-id`, `--element-id`, `--absolute-x`, `--absolute-y` |
+| `transform-resize` | Resize element (TransformPattern) | `--window-id`, `--element-id`, `width` (positional), `height` (positional) |
+| `transform-rotate` | Rotate element (TransformPattern) | `--window-id`, `--element-id`, `degrees` (positional) |
 | `type-keys` | Type keys to element | `--window-id`, `--element-id`, `keys` (positional) |
 
 ### Scroll Parameters
@@ -176,3 +233,41 @@ python scripts\winguictl.py uia-control --window-id 12345 --element-id "SubmitBu
 | `--direction` | `up`, `down`, `left`, `right` |
 | `--amount` | `line`, `page` |
 | `--count` | Number of scrolls (default: 1) |
+
+### UIA Actions
+
+The `supported_actions` field in `snapshot uia` and `find uia` output shows which `uia-control` subcommands the element supports. Actions are derived from the element's UIA patterns:
+
+| Action | Required Pattern | Description |
+|--------|-----------------|-------------|
+| `invoke` | InvokePattern | Invoke the element (buttons, menu items) |
+| `get-value` | ValuePattern | Get element value |
+| `set-value` | ValuePattern | Set element value |
+| `set-text` | ValuePattern | Set element text |
+| `get-text` | ValuePattern, TextPattern | Get element text |
+| `toggle` | TogglePattern | Toggle element state |
+| `get-toggle-state` | TogglePattern | Get toggle state (0=off, 1=on, 2=indeterminate) |
+| `expand` | ExpandCollapsePattern | Expand node (ComboBox, TreeItem, MenuItem) |
+| `collapse` | ExpandCollapsePattern | Collapse node |
+| `is-expanded` | ExpandCollapsePattern | Check if element is expanded |
+| `scroll` | ScrollPattern | Scroll element |
+| `select` | SelectionItemPattern | Select element |
+| `is-selected` | SelectionItemPattern | Check if element is selected |
+| `combo-select` | SelectionItemPattern | Select combo box item |
+| `list-select` | SelectionItemPattern | Select list item |
+| `tab-select` | SelectionItemPattern | Select tab |
+| `list-selected-items` | SelectionPattern | Get selected items in list |
+| `slider-value` | RangeValuePattern | Get slider value |
+| `slider-set` | RangeValuePattern | Set slider value |
+| `slider-min` | RangeValuePattern | Get slider minimum |
+| `slider-max` | RangeValuePattern | Get slider maximum |
+| `window-close` | WindowPattern | Close the window |
+| `window-minimize` | WindowPattern | Minimize the window |
+| `window-maximize` | WindowPattern | Maximize the window |
+| `window-restore` | WindowPattern | Restore window to normal size |
+| `window-state` | WindowPattern | Get window visual state (normal/maximized/minimized) |
+| `transform-move` | TransformPattern | Move element to screen coordinates (args: --absolute-x, --absolute-y) |
+| `transform-resize` | TransformPattern | Resize element (args: width, height in pixels) |
+| `transform-rotate` | TransformPattern | Rotate element (args: degrees) |
+
+The following operations are always available regardless of patterns: `click`, `double-click`, `right-click`, `set-focus`, `type-keys`.

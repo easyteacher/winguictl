@@ -16,15 +16,20 @@ All find commands return element information with the following fields:
 - `hwnd` - Control handle (HWND mode)
 - `automation_id` - Automation ID (UIA mode)
 - `runtime_id` - Runtime ID (UIA mode)
+- `supported_actions` - Supported uia-control actions (UIA mode)
 - `confidence` - Match confidence score (0-1)
 
 ## Find Text
 
-```powershell
-# Find visible controls containing the specified text (fuzzy match)
-python scripts\winguictl.py find --window-id <id> text "Submit"
+### Fuzzy Match
 
-# Find visible controls exactly matching the specified text
+```powershell
+python scripts\winguictl.py find --window-id <id> text "Submit"
+```
+
+### Exact Match
+
+```powershell
 python scripts\winguictl.py find --window-id <id> text "Submit" --exact
 ```
 
@@ -38,18 +43,36 @@ python scripts\winguictl.py find --window-id <id> text "Submit" --exact
 
 ## Find UIA Controls
 
+### Find by Text
+
 ```powershell
-# Find controls containing the specified text via UIA
 python scripts\winguictl.py find --window-id <id> uia --text "Submit"
+```
 
-# Find controls exactly matching the specified text via UIA
+### Exact Text Match
+
+```powershell
 python scripts\winguictl.py find --window-id <id> uia --text "Submit" --exact
+```
 
-# Find elements of a specified control type via UIA
+### Find by Control Type
+
+```powershell
 python scripts\winguictl.py find --window-id <id> uia --control-type Button
+```
 
-# Combined conditions: find buttons whose text contains "OK"
+### Find by Supported Action
+
+```powershell
+python scripts\winguictl.py find --window-id <id> uia --action set-text
+```
+
+### Combined Conditions
+
+```powershell
 python scripts\winguictl.py find --window-id <id> uia --text "OK" --control-type Button
+
+python scripts\winguictl.py find --window-id <id> uia --control-type Edit --action set-text
 ```
 
 ### UIA Control Types
@@ -96,13 +119,25 @@ The `--control-type` parameter accepts standard UIA (UI Automation) control type
 | `TitleBar` | Title bar |
 | `Window` | Window |
 
+### Control Type Aliases
+
+Some UIA control types have aliases. When searching by `--control-type`, matching results from both the original type and its aliases will be returned:
+
+| Search Type | Also Matches | Reason |
+|------------|-------------|--------|
+| `Edit` | `Document` | Windows 11 Notepad and WinUI3 text editors use `Document` instead of `Edit` |
+
 ## Find OCR Text
 
-```powershell
-# Find text in a window via OCR (fuzzy match)
-python scripts\winguictl.py find --window-id <id> ocr "Confirm"
+### Fuzzy Match
 
-# Find text via OCR, with confidence threshold
+```powershell
+python scripts\winguictl.py find --window-id <id> ocr "Confirm"
+```
+
+### With Confidence Threshold
+
+```powershell
 python scripts\winguictl.py find --window-id <id> ocr "Confirm" --confidence-threshold 0.7
 ```
 
@@ -126,14 +161,21 @@ OCR-based text finding captures visible text from the window, which may include 
 
 ## Find Image
 
+### Basic Usage
+
 ```powershell
-# Find a matching image template in a window
 python scripts\winguictl.py find --window-id <id> image --image-path assets\button.png
+```
 
-# Find image template with custom match similarity threshold (default 0.9)
+### Custom Match Threshold
+
+```powershell
 python scripts\winguictl.py find --window-id <id> image --image-path assets\button.png --threshold 0.95
+```
 
-# Find image template with custom overlap threshold for deduplication (default 0.5)
+### Custom Overlap Threshold
+
+```powershell
 python scripts\winguictl.py find --window-id <id> image --image-path assets\button.png --overlap-threshold 0.3
 ```
 
@@ -152,7 +194,6 @@ python scripts\winguictl.py find --window-id <id> image --image-path assets\butt
 |-----------|---------|-------------|
 | `--image-path` | (required) | Path to the template image file |
 | `--threshold` | 0.9 | Match confidence threshold (0-1). Higher values require closer matches. |
-| `--max-results` | 5 | Maximum number of results to return |
 | `--overlap-threshold` | 0.5 | IoU threshold for non-maximum suppression (0-1). Higher values allow more overlapping matches. Use lower values (e.g., 0.3) to get fewer overlapping results, or higher values (e.g., 0.7) to allow more overlapping matches. |
 
 ### Overlap Threshold Explanation

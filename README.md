@@ -46,14 +46,6 @@ python scripts\winguictl.py action --window-id <id> type --text "Hello World"
 python scripts\winguictl.py screenshot --window-id <id> --output shot.png
 ```
 
-## Global Options
-
-```powershell
-# Enable debug logging
-python scripts\winguictl.py --verbose window list
-python scripts\winguictl.py -v window list
-```
-
 ## Documentation
 
 - [SKILL.md](SKILL.md) — Complete skill documentation with workflow and security guidelines

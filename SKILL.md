@@ -176,22 +176,6 @@ For comprehensive security guidelines, see [Security Guidelines](references/SECU
 
 For dependency details, see [Dependencies](references/dependencies.md).
 
-## Global Options
-
-### Verbose Mode
-
-Use `--verbose` or `-v` to enable debug logging output:
-
-```powershell
-python scripts\winguictl.py --verbose window list
-```
-
-This outputs detailed diagnostic information to stderr, including:
-- Timestamps
-- Log levels
-- Module names
-- Debug messages from drivers
-
 ## Error Handling
 
 The CLI returns appropriate exit codes:

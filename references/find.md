@@ -61,6 +61,26 @@ python scripts\winguictl.py find --window-id <id> uia --text "Submit" --exact
 python scripts\winguictl.py find --window-id <id> uia --control-type Button
 ```
 
+### Find by Class Name
+
+```powershell
+# Partial match (default)
+python scripts\winguictl.py find --window-id <id> uia --class Edit
+
+# Exact match
+python scripts\winguictl.py find --window-id <id> uia --class "Button" --exact
+```
+
+### Find by Automation ID
+
+```powershell
+# Partial match (default)
+python scripts\winguictl.py find --window-id <id> uia --automation-id Submit
+
+# Exact match
+python scripts\winguictl.py find --window-id <id> uia --automation-id "SubmitButton" --exact
+```
+
 ### Find by Supported Action
 
 ```powershell
@@ -73,6 +93,10 @@ python scripts\winguictl.py find --window-id <id> uia --action set-text
 python scripts\winguictl.py find --window-id <id> uia --text "OK" --control-type Button
 
 python scripts\winguictl.py find --window-id <id> uia --control-type Edit --action set-text
+
+python scripts\winguictl.py find --window-id <id> uia --class Button --text "Submit"
+
+python scripts\winguictl.py find --window-id <id> uia --automation-id "btn" --control-type Button
 ```
 
 ### UIA Control Types

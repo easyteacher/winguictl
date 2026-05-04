@@ -8,6 +8,7 @@ scripts/
 ├── uia_driver.py       # UIA control operations (based on pywinauto UIA backend)
 ├── ocr_driver.py       # OCR text recognition (based on wx-ocr)
 ├── find_driver.py      # Element finding (text/UIA/OCR/image)
+├── wait_utils.py       # Wait condition checking utilities
 ├── win32_utils.py      # Win32 API low-level wrapper (pywin32 + ctypes fallback)
 ├── constants.py        # Named constants, VK mapping, control types, optional deps
 ├── output_utils.py     # Output formatting, boundary markers, JSON emission
@@ -22,6 +23,7 @@ scripts/
 | `uia_driver.py` | UIA control operations (click, scroll, expand/collapse, slider, etc.) | pywinauto, comtypes |
 | `ocr_driver.py` | Window screenshot + OCR text recognition | wx-ocr (optional) |
 | `find_driver.py` | Find elements by text/UIA/OCR/image | pywinauto, opencv (optional) |
+| `wait_utils.py` | Condition checking for wait commands (window, text, UIA, OCR, image) | find_driver, ocr_driver, windows_driver |
 | `win32_utils.py` | Low-level input simulation (mouse click/drag, keyboard input, screenshot) | pywin32, ctypes (PrintWindow only) |
 | `constants.py` | Named constants, VK codes, control type mappings, optional dependency detection | opencv, wx-ocr (optional) |
 | `output_utils.py` | Output formatting, boundary markers, control info builders | models, win32_utils |

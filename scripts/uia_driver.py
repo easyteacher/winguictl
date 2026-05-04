@@ -736,7 +736,8 @@ class UIADriver:
         wrapper = desktop.window(handle=window_id)
         lines: list[str] = []
 
-        window_bounds = Win32API.get_window_bounds(window_id)
+        window_bounds_result = Win32API.get_window_bounds(window_id)
+        window_bounds = window_bounds_result.value if window_bounds_result.is_ok else None
         win_x = window_bounds.x if window_bounds else 0
         win_y = window_bounds.y if window_bounds else 0
 

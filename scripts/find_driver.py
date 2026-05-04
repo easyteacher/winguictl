@@ -138,7 +138,8 @@ class FindDriver:
             desktop = _get_uia_desktop()
             wrapper = desktop.window(handle=window_id)
 
-            window_bounds = Win32API.get_window_bounds(window_id)
+            window_bounds_result = Win32API.get_window_bounds(window_id)
+            window_bounds = window_bounds_result.value if window_bounds_result.is_ok else None
             win_x = window_bounds.x if window_bounds else 0
             win_y = window_bounds.y if window_bounds else 0
 
@@ -194,8 +195,8 @@ class FindDriver:
         lowered_query = query.casefold()
         matches: list[ElementInfo] = []
 
-        # Get window position to convert screen coordinates to relative
-        window_bounds = Win32API.get_window_bounds(hwnd)
+        window_bounds_result = Win32API.get_window_bounds(hwnd)
+        window_bounds = window_bounds_result.value if window_bounds_result.is_ok else None
         win_x = window_bounds.x if window_bounds else 0
         win_y = window_bounds.y if window_bounds else 0
 
@@ -207,9 +208,10 @@ class FindDriver:
             is_match = lowered_title == lowered_query if exact else lowered_query in lowered_title
             if not is_match:
                 return
-            bounds = Win32API.get_window_bounds(candidate_hwnd)
-            if bounds is None:
+            bounds_result = Win32API.get_window_bounds(candidate_hwnd)
+            if bounds_result.is_err:
                 return
+            bounds = bounds_result.value
 
             matches.append(
                 ElementInfo(
@@ -274,7 +276,8 @@ class FindDriver:
         desktop = _get_uia_desktop()
         wrapper = desktop.window(handle=window_id)
 
-        window_bounds = Win32API.get_window_bounds(window_id)
+        window_bounds_result = Win32API.get_window_bounds(window_id)
+        window_bounds = window_bounds_result.value if window_bounds_result.is_ok else None
         win_x = window_bounds.x if window_bounds else 0
         win_y = window_bounds.y if window_bounds else 0
 

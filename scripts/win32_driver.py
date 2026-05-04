@@ -260,8 +260,8 @@ class Win32Driver:
         lines: list[str] = []
         visited: set[int] = set()
 
-        # Get window position to convert screen coordinates to relative
-        window_bounds = Win32API.get_window_bounds(window_id)
+        window_bounds_result = Win32API.get_window_bounds(window_id)
+        window_bounds = window_bounds_result.value if window_bounds_result.is_ok else None
         win_x = window_bounds.x if window_bounds else 0
         win_y = window_bounds.y if window_bounds else 0
 
@@ -291,11 +291,10 @@ class Win32Driver:
             control_id = win32gui.GetDlgCtrlID(hwnd)
             control_type = Win32Driver.infer_control_type(cls)
 
-            # Get bounds and convert to window-relative coordinates
-            bounds = Win32API.get_window_bounds(hwnd)
+            bounds_result = Win32API.get_window_bounds(hwnd)
             rect_tuple: Optional[tuple[int, int, int, int]] = None
-            if bounds:
-                relative_bounds = Bounds.from_bounds_relative(bounds, win_x, win_y)
+            if bounds_result.is_ok:
+                relative_bounds = Bounds.from_bounds_relative(bounds_result.value, win_x, win_y)
                 rect_tuple = (relative_bounds.x, relative_bounds.y, relative_bounds.width, relative_bounds.height)
 
             lines.append(ElementFormatter.format_hwnd(hwnd, text, cls, visible, enabled, control_id, level, control_type, rect_tuple))

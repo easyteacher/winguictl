@@ -13,12 +13,30 @@ import json
 import secrets
 from typing import TYPE_CHECKING, Any, Optional
 
-from models import ActionResult, WindowInfo
+from models import ActionResult, Ok, Result, WindowInfo
 from win32_utils import Win32API
 
 if TYPE_CHECKING:
     from uia_driver import UIADriver
     from win32_driver import Win32Driver
+
+
+def unwrap_result(result: Result, error_prefix: str = "operation failed") -> Any:
+    """Unwrap a Result, raising ValueError on error.
+
+    Args:
+        result: Result to unwrap
+        error_prefix: Prefix for error message
+
+    Returns:
+        The success value
+
+    Raises:
+        ValueError: If result is an error
+    """
+    if result.is_ok:
+        return result.value
+    raise ValueError(f"{error_prefix}: {result.error}")
 
 
 def emit(payload: dict) -> None:
@@ -98,7 +116,8 @@ def build_center_payload(target) -> dict:
         relative_x = center_x
         relative_y = center_y
     else:
-        window_bounds = Win32API.get_window_bounds(int(target.window_id))
+        bounds_result = Win32API.get_window_bounds(int(target.window_id))
+        window_bounds = bounds_result.value if bounds_result.is_ok else None
         if window_bounds:
             relative_x = center_x - window_bounds.x
             relative_y = center_y - window_bounds.y
@@ -162,10 +181,10 @@ def format_window_tree(windows: list[WindowInfo]) -> str:
 def resolve_window_context(window_id: int) -> tuple[str, "Bounds"]:
     """Resolve window title and bounds, raising ValueError if window not found."""
     window_title = Win32API.get_window_text(window_id)
-    bounds = Win32API.get_window_bounds(window_id)
-    if bounds is None:
+    bounds_result = Win32API.get_window_bounds(window_id)
+    if bounds_result.is_err:
         raise ValueError(f"window not found: {window_id}")
-    return window_title, bounds
+    return window_title, bounds_result.value
 
 
 def validate_relative_coords(x: int, y: int, bounds: "Bounds") -> None:
@@ -192,7 +211,8 @@ def build_point_context(absolute_x: int, absolute_y: int) -> dict[str, Any]:
     from uia_driver import UIADriver
 
     element_at_point = UIADriver.get_element_at_point(absolute_x, absolute_y)
-    hwnd_at_point = Win32API.get_hwnd_from_point(absolute_x, absolute_y)
+    hwnd_result = Win32API.get_hwnd_from_point(absolute_x, absolute_y)
+    hwnd_at_point = hwnd_result.value if hwnd_result.is_ok else None
     control_info = build_control_info(hwnd_at_point) if hwnd_at_point else None
     return {"element_at_point": element_at_point, "control_info": control_info}
 

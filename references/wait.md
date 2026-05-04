@@ -6,6 +6,21 @@ For output format details, see [Output Format](output-format.md).
 
 ## Common Parameters
 
+All wait commands support these parameters at the main command level:
+
+| Parameter | Description |
+|-----------|-------------|
+| `--window-id` | Window handle (required for text, uia, ocr, image subcommands) |
+
+The `--window-id` can be specified anywhere in the command line:
+
+```powershell
+# All these are equivalent
+python scripts\winguictl.py --window-id 123 wait uia --automation-id "button"
+python scripts\winguictl.py wait --window-id 123 uia --automation-id "button"
+python scripts\winguictl.py wait uia --window-id 123 --automation-id "button"
+```
+
 All wait commands (except `sleep`) support these parameters:
 
 | Parameter | Default | Description |
@@ -75,8 +90,10 @@ python scripts\winguictl.py wait window "加载中" --disappear --timeout 10
 ### Output
 
 On success (window appeared):
-```json
-{"ok": true, "action": "window_appear", "data": {"title": "记事本", "window_id": "12345", "window_title": "无标题 - 记事本", "elapsed_ms": 1500}}
+```
+--- WINGUICTL_CONTENT nonce=abc123 ---
+- "无标题 - 记事本" [window_id="12345" class_name="Notepad" process="notepad.exe" pid="5678"]
+--- END_WINGUICTL_CONTENT nonce=abc123 ---
 ```
 
 On success (window disappeared):
@@ -97,23 +114,23 @@ Wait for text to appear or disappear in a window.
 
 ```powershell
 # Fuzzy match (default)
-python scripts\winguictl.py wait text --window-id <id> "确定"
+python scripts\winguictl.py --window-id <id> wait text "确定"
 
 # Exact match
-python scripts\winguictl.py wait text --window-id <id> "确定" --exact
+python scripts\winguictl.py --window-id <id> wait text "确定" --exact
 ```
 
 ### Wait for Text to Disappear
 
 ```powershell
-python scripts\winguictl.py wait text --window-id <id> "加载中" --disappear --timeout 10
+python scripts\winguictl.py --window-id <id> wait text "加载中" --disappear --timeout 10
 ```
 
 ### Parameters
 
 | Parameter | Description |
 |-----------|-------------|
-| `--window-id` | Window handle (required) |
+| `--window-id` | Window handle (required, can be specified at any position) |
 | `text` | Text to wait for |
 | `--exact` | Match text exactly |
 | `--timeout` | Timeout in seconds (default: 30) |
@@ -122,8 +139,11 @@ python scripts\winguictl.py wait text --window-id <id> "加载中" --disappear -
 
 ### Output
 
-```json
-{"ok": true, "action": "text_appear", "data": {"window_id": "12345", "text": "确定", "elapsed_ms": 800}}
+On success, returns matched elements with full control information:
+```
+--- WINGUICTL_CONTENT nonce=abc123 ---
+- "确定" [control_type="Button" class="Button" confidence=0.95 relative_rect=(100,200 80x30) runtime_id="42-12345-4-1234"]
+--- END_WINGUICTL_CONTENT nonce=abc123 ---
 ```
 
 ## Wait for UIA Element
@@ -134,26 +154,26 @@ Wait for a UIA element to appear or disappear in a window.
 
 ```powershell
 # Wait for button with specific text
-python scripts\winguictl.py wait uia --window-id <id> --text "确定" --control-type Button
+python scripts\winguictl.py --window-id <id> wait uia --text "确定" --control-type Button
 
 # Wait for element with specific automation-id
-python scripts\winguictl.py wait uia --window-id <id> --automation-id "submitButton"
+python scripts\winguictl.py --window-id <id> wait uia --automation-id "submitButton"
 
 # Combined conditions
-python scripts\winguictl.py wait uia --window-id <id> --text "保存" --control-type Button
+python scripts\winguictl.py --window-id <id> wait uia --text "保存" --control-type Button
 ```
 
 ### Wait for Element to Disappear
 
 ```powershell
-python scripts\winguictl.py wait uia --window-id <id> --text "加载中" --disappear --timeout 15
+python scripts\winguictl.py --window-id <id> wait uia --text "加载中" --disappear --timeout 15
 ```
 
 ### Parameters
 
 | Parameter | Description |
 |-----------|-------------|
-| `--window-id` | Window handle (required) |
+| `--window-id` | Window handle (required, can be specified at any position) |
 | `--text` | Filter by element text/name |
 | `--control-type` | Filter by control type |
 | `--class` | Filter by window class name |
@@ -165,8 +185,11 @@ python scripts\winguictl.py wait uia --window-id <id> --text "加载中" --disap
 
 ### Output
 
-```json
-{"ok": true, "action": "uia_appear", "data": {"window_id": "12345", "elapsed_ms": 1200}}
+On success, returns matched elements with full control information:
+```
+--- WINGUICTL_CONTENT nonce=abc123 ---
+- "确定" [control_type="Button" class="Button" automation_id="okButton" confidence=0.95 relative_rect=(100,200 80x30) runtime_id="42-12345-4-1234"]
+--- END_WINGUICTL_CONTENT nonce=abc123 ---
 ```
 
 ## Wait for OCR Text
@@ -177,23 +200,23 @@ Wait for OCR-recognized text to appear or disappear in a window.
 
 ```powershell
 # Fuzzy match (default)
-python scripts\winguictl.py wait ocr --window-id <id> "[3条]"
+python scripts\winguictl.py --window-id <id> wait ocr "[3条]"
 
 # Exact match
-python scripts\winguictl.py wait ocr --window-id <id> "确定" --exact
+python scripts\winguictl.py --window-id <id> wait ocr "确定" --exact
 ```
 
 ### Wait for OCR Text to Disappear
 
 ```powershell
-python scripts\winguictl.py wait ocr --window-id <id> "正在加载" --disappear --timeout 20
+python scripts\winguictl.py --window-id <id> wait ocr "正在加载" --disappear --timeout 20
 ```
 
 ### Parameters
 
 | Parameter | Description |
 |-----------|-------------|
-| `--window-id` | Window handle (required) |
+| `--window-id` | Window handle (required, can be specified at any position) |
 | `text` | Text to wait for |
 | `--exact` | Match text exactly |
 | `--confidence-threshold` | OCR confidence threshold (default: 0.0) |
@@ -203,8 +226,11 @@ python scripts\winguictl.py wait ocr --window-id <id> "正在加载" --disappear
 
 ### Output
 
-```json
-{"ok": true, "action": "ocr_appear", "data": {"window_id": "12345", "text": "[3条]", "elapsed_ms": 2500}}
+On success, returns matched text regions:
+```
+--- WINGUICTL_CONTENT nonce=abc123 ---
+- "[3条]" [confidence=0.90 relative_rect=(100,50 40x20)]
+--- END_WINGUICTL_CONTENT nonce=abc123 ---
 ```
 
 ### Warning
@@ -218,23 +244,23 @@ Wait for an image template to appear or disappear in a window.
 ### Wait for Image to Appear
 
 ```powershell
-python scripts\winguictl.py wait image --window-id <id> --image-path assets\button.png
+python scripts\winguictl.py --window-id <id> wait image --image-path assets\button.png
 
 # With custom threshold
-python scripts\winguictl.py wait image --window-id <id> --image-path assets\button.png --threshold 0.95
+python scripts\winguictl.py --window-id <id> wait image --image-path assets\button.png --threshold 0.95
 ```
 
 ### Wait for Image to Disappear
 
 ```powershell
-python scripts\winguictl.py wait image --window-id <id> --image-path assets\loading.png --disappear --timeout 10
+python scripts\winguictl.py --window-id <id> wait image --image-path assets\loading.png --disappear --timeout 10
 ```
 
 ### Parameters
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `--window-id` | (required) | Window handle |
+| `--window-id` | (required) | Window handle (can be specified at any position) |
 | `--image-path` | (required) | Path to the template image file |
 | `--threshold` | 0.9 | Match confidence threshold (0-1) |
 | `--timeout` | 30.0 | Timeout in seconds |
@@ -243,8 +269,11 @@ python scripts\winguictl.py wait image --window-id <id> --image-path assets\load
 
 ### Output
 
-```json
-{"ok": true, "action": "image_appear", "data": {"window_id": "12345", "image_path": "assets\\button.png", "elapsed_ms": 1800}}
+On success, returns matched image regions:
+```
+--- WINGUICTL_CONTENT nonce=abc123 ---
+- "button.png" [confidence=0.95 relative_rect=(100,200 80x30)]
+--- END_WINGUICTL_CONTENT nonce=abc123 ---
 ```
 
 ## Use Cases
@@ -261,21 +290,21 @@ python scripts\winguictl.py wait window "打开" --class "#32770" --timeout 5
 
 ```powershell
 # Wait for loading indicator to disappear
-python scripts\winguictl.py wait ocr --window-id <id> "加载中" --disappear --timeout 30
+python scripts\winguictl.py --window-id <id> wait ocr "加载中" --disappear --timeout 30
 ```
 
 ### Wait for Message Notification
 
 ```powershell
 # Wait for new message badge to appear
-python scripts\winguictl.py wait ocr --window-id <wx_id> "[新消息]" --timeout 60
+python scripts\winguictl.py --window-id <wx_id> wait ocr "[新消息]" --timeout 60
 ```
 
 ### Wait for Button to Become Available
 
 ```powershell
 # Wait for submit button to appear
-python scripts\winguictl.py wait uia --window-id <id> --text "提交" --control-type Button --timeout 10
+python scripts\winguictl.py --window-id <id> wait uia --text "提交" --control-type Button --timeout 10
 ```
 
 ## Error Handling
@@ -286,3 +315,8 @@ All wait commands return exit code `1` on timeout or error:
 |-----------|-------------|
 | 0 | Success (condition met) |
 | 1 | Timeout or error |
+
+When `--window-id` is required but not provided:
+```json
+{"ok": false, "action": "text", "data": {"error": "--window-id is required for text subcommand"}}
+```

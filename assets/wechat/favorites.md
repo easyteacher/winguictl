@@ -2,7 +2,7 @@
 
 ---
 
-## 8.1 打开收藏
+## 打开收藏
 
 ```powershell
 # 点击"更多" -> "收藏"
@@ -12,7 +12,7 @@ python scripts\winguictl.py find --window-id <wx_window_id> uia --text "收藏" 
 python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <collections_x> --relative-y <collections_y>
 ```
 
-## 8.2 新建笔记
+## 新建笔记
 
 ### 步骤1：打开收藏后，点击"新建笔记"
 
@@ -56,7 +56,7 @@ python scripts\winguictl.py action --window-id <note_window_id> press-key --key 
 python scripts\winguictl.py action --window-id <note_window_id> press-key --key "{ENTER}"
 ```
 
-## 8.3 获取收藏链接 URL
+## 获取收藏链接 URL
 
 ### 步骤1：打开收藏窗口
 

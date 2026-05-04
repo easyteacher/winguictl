@@ -2,7 +2,7 @@
 
 ---
 
-## 6.1 拨打语音电话
+## 拨打语音电话
 
 ### 步骤1：打开好友聊天窗口（不支持群聊）
 
@@ -37,7 +37,7 @@ python scripts\winguictl.py window list
 python scripts\winguictl.py window --window-id <voip_window_id> focus
 ```
 
-## 6.2 拨打视频电话
+## 拨打视频电话
 
 ### 步骤1：打开好友聊天窗口
 
@@ -59,7 +59,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> press-key --key "{
 python scripts\winguictl.py action --window-id <wx_window_id> press-key --key "{ENTER}"
 ```
 
-## 6.3 接听/挂断电话
+## 接听/挂断电话
 
 ### 接听
 

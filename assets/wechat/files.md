@@ -2,9 +2,9 @@
 
 ---
 
-## 5.1 导出聊天记录中的文件
+## 导出聊天记录中的文件
 
-### 步骤1：打开聊天记录窗口（参考消息操作 3.7）
+### 步骤1：打开聊天记录窗口（参考消息操作-获取聊天记录）
 
 ```powershell
 ```
@@ -30,7 +30,7 @@ python scripts\winguictl.py find --window-id <history_window_id> uia --text "另
 python scripts\winguictl.py action --window-id <history_window_id> click --relative-x <save_as_x> --relative-y <save_as_y>
 ```
 
-## 5.2 导出最近文件
+## 导出最近文件
 
 ### 步骤1：打开"聊天文件"窗口
 
@@ -60,7 +60,7 @@ python scripts\winguictl.py window list
 python scripts\winguictl.py snapshot --window-id <chatfiles_window_id> uia
 ```
 
-## 5.3 导出视频
+## 导出视频
 
 ```powershell
 # 微信视频存储路径（需先获取 wxid 文件夹）
@@ -69,7 +69,7 @@ python scripts\winguictl.py snapshot --window-id <chatfiles_window_id> uia
 Copy-Item -Path "$wxidFolder\msg\video\2025-01\*.mp4" -Destination "D:\导出视频\" -Recurse
 ```
 
-## 5.4 导出聊天文件（按年月）
+## 导出聊天文件（按年月）
 
 ```powershell
 # 聊天文件路径：%WXID_FOLDER%\msg\file\YYYY-MM\

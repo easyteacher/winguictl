@@ -2,7 +2,7 @@
 
 ---
 
-## 7.1 打开朋友圈
+## 打开朋友圈
 
 ```powershell
 # 点击左侧"朋友圈"按钮
@@ -13,7 +13,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x
 Start-Sleep -Seconds 2
 ```
 
-## 7.2 发布朋友圈
+## 发布朋友圈
 
 ### 步骤1：打开朋友圈后，点击"发表"或相机图标
 
@@ -36,7 +36,7 @@ python scripts\winguictl.py find --window-id <wx_window_id> uia --text "发表" 
 python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x <post_btn_x> --relative-y <post_btn_y>
 ```
 
-## 7.3 浏览好友朋友圈
+## 浏览好友朋友圈
 
 ### 步骤1：打开好友资料页
 
@@ -56,7 +56,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> click --relative-x
 python scripts\winguictl.py action --window-id <moments_window_id> scroll --direction down --amount 3
 ```
 
-## 7.4 点赞/评论朋友圈
+## 点赞/评论朋友圈
 
 ### 步骤1：找到朋友圈内容下方的灰色省略号按钮
 

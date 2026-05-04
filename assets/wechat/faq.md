@@ -2,7 +2,7 @@
 
 ---
 
-## 13.1 微信未启动/未登录
+## 微信未启动/未登录
 
 - **现象**：找不到 `mmui::MainWindow` 窗口，或窗口标题为空。
 - **解决**：确保微信已启动并登录。若仅启动未登录，窗口类名为 `mmui::LoginWindow`。
@@ -11,7 +11,7 @@
   Get-Process | Where-Object { $_.ProcessName -eq "Weixin" }
   ```
 
-## 13.2 窗口定位失败
+## 窗口定位失败
 
 - **现象**：`find` 或 `snapshot` 找不到目标控件。
 - **原因**：
@@ -24,7 +24,7 @@
   3. 在操作前增加 `Start-Sleep` 等待窗口加载。
   4. 使用 `--skip-actions` 和 `--skip-state` 加速 Qt 应用的 snapshot。
 
-## 13.3 坐标点击不准确
+## 坐标点击不准确
 
 - **现象**：点击位置偏离目标控件。
 - **原因**：窗口大小变化、DPI 缩放、多显示器配置。
@@ -33,19 +33,19 @@
   2. 使用 `find` 动态获取控件坐标，而非硬编码。
   3. 对于高 DPI 显示器，确保微信和脚本进程的 DPI 感知设置一致。
 
-## 13.4 群聊语音/视频电话限制
+## 群聊语音/视频电话限制
 
 - **现象**：在群聊中发起语音或视频电话时微信卡死。
 - **原因**：微信 4.0 版本在群聊通话的 SessionPicker 窗口存在 UI 自动化 Bug。
 - **解决**：仅对单个好友发起语音/视频通话，避免群聊通话自动化。
 
-## 13.5 添加好友频率限制
+## 添加好友频率限制
 
 - **现象**：频繁添加好友后账号被封禁。
 - **限制**：单次不超过 8 人，每日不超过 4 次，间隔不少于 2 小时。
 - **建议**：控制自动化添加好友的频率，避免触发风控。
 
-## 13.6 文件发送限制
+## 文件发送限制
 
 - **限制**：
   - 单文件大小：不超过 1GB
@@ -53,18 +53,18 @@
   - 笔记内文件：单个不超过 100MB
 - **解决**：发送前检查文件大小，超大文件分卷压缩后发送。
 
-## 13.7 消息字数限制
+## 消息字数限制
 
 - **限制**：单条消息最多 2000 字。
 - **解决**：超长文本自动转换为 `.txt` 文件发送。
 
-## 13.8 语言检测失败
+## 语言检测失败
 
 - **现象**：`pyweixin` 无法自动检测微信语言。
 - **原因**：WechatAppex.exe 未初始化（需先打开一次视频号或小程序面板）。
 - **解决**：手动打开一次视频号或小程序面板，或在配置中手动指定语言。
 
-## 13.9 UIA 遍历性能问题
+## UIA 遍历性能问题
 
 - **现象**：Qt 应用（如微信）的 UIA snapshot 非常慢。
 - **解决**：使用 `--skip-actions` 和 `--skip-state` 参数：
@@ -72,7 +72,7 @@
   python scripts\winguictl.py snapshot --window-id <id> uia --skip-actions --skip-state
   ```
 
-## 13.10 安全建议
+## 安全建议
 
 - 执行任何 `action` 命令前，先使用 `--dry-run` 预览操作：
   ```powershell
@@ -82,7 +82,7 @@
 - 避免在包含敏感信息的窗口上使用 OCR。
 - 不要在自动化过程中操作鼠标和键盘，以免干扰脚本执行。
 
-## 13.11 多语言文本对照表
+## 多语言文本对照表
 
 | 功能 | 简体中文 | English | 繁體中文 |
 |------|----------|---------|----------|
@@ -167,35 +167,3 @@
 | 年 | 年 | - | 年 |
 | 月 | 月 | - | 月 |
 | 天前 | 天前 | day(s) ago | 天前 |
-
----
-
-## 附录：常用 winguictl 命令速查
-
-| 操作 | 命令 |
-|------|------|
-| 列出窗口 | `python scripts\winguictl.py window list` |
-| 聚焦窗口 | `python scripts\winguictl.py window --window-id <id> focus` |
-| 关闭窗口 | `python scripts\winguictl.py window --window-id <id> close` |
-| 最大化 | `python scripts\winguictl.py window --window-id <id> maximize` |
-| 最小化 | `python scripts\winguictl.py window --window-id <id> minimize` |
-| 移动窗口 | `python scripts\winguictl.py window --window-id <id> move --x 100 --y 200` |
-| UIA 快照 | `python scripts\winguictl.py snapshot --window-id <id> uia` |
-| HWND 快照 | `python scripts\winguictl.py snapshot --window-id <id> hwnd` |
-| OCR 识别 | `python scripts\winguictl.py snapshot --window-id <id> ocr` |
-| 查找文本 | `python scripts\winguictl.py find --window-id <id> text "目标文本"` |
-| 查找 UIA | `python scripts\winguictl.py find --window-id <id> uia --text "文本" --control-type Button` |
-| 查找图片 | `python scripts\winguictl.py find --window-id <id> image --image-path assets\btn.png` |
-| 点击坐标 | `python scripts\winguictl.py action --window-id <id> click --relative-x 100 --relative-y 200` |
-| 点击图像 | `python scripts\winguictl.py action --window-id <id> click-image --image-path assets\btn.png` |
-| 输入文本 | `python scripts\winguictl.py action --window-id <id> type --text "hello"` |
-| 按键 | `python scripts\winguictl.py action --window-id <id> press-key --key "{ENTER}"` |
-| 快捷键 | `python scripts\winguictl.py action --window-id <id> hotkey --keys "{CTRL}" "{A}"` |
-| 清空文本 | `python scripts\winguictl.py action --window-id <id> clear-text` |
-| 拖拽 | `python scripts\winguictl.py action --window-id <id> drag --relative-x1 100 --relative-y1 200 --relative-x2 400 --relative-y2 200` |
-| UIA 点击 | `python scripts\winguictl.py uia-control --window-id <id> --element-id "42-123456" click` |
-| UIA 设值 | `python scripts\winguictl.py uia-control --window-id <id> --element-id "Edit1" set-value "text"` |
-| UIA Toggle | `python scripts\winguictl.py uia-control --window-id <id> --element-id "Check1" toggle` |
-| Win32 点击 | `python scripts\winguictl.py control --hwnd <hwnd> click` |
-| Win32 设值 | `python scripts\winguictl.py control --hwnd <hwnd> set-text "text"` |
-| 截图 | `python scripts\winguictl.py screenshot --window-id <id> --output screenshot.png` |

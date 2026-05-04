@@ -9,7 +9,7 @@
 
 ---
 
-## 1.1 打开微信主窗口（重要，后续操作依赖微信主窗口）
+## 打开微信主窗口（重要，后续操作依赖微信主窗口）
 
 即使微信已打开，也需要执行此步骤，确保窗口可见。
 
@@ -17,7 +17,7 @@
 Start-Process "C:\Program Files (x86)\Tencent\Weixin\Weixin.exe" --scene=taskbarpins
 ```
 
-## 1.2 微信窗口特征
+## 微信窗口特征
 
 微信主窗口的 UIA 特征：
 - `class_name`: `mmui::MainWindow`

@@ -2,14 +2,23 @@
 
 ---
 
-## 2.1 查找微信窗口
+## 查找微信窗口
 
 ```powershell
 # 列出所有可见窗口，识别微信窗口 ID
 python scripts\winguictl.py window list
 ```
 
-## 2.2 打开/激活微信主界面
+## 打开/激活微信主界面
+
+### 后台运行时
+
+运行程序激活微信主界面
+```powershell
+Start-Process "C:\Program Files (x86)\Tencent\Weixin\Weixin.exe" --scene=taskbarpins
+```
+
+### 已有微信窗口时
 
 ```powershell
 # 如果微信已最小化，恢复窗口
@@ -22,7 +31,7 @@ python scripts\winguictl.py window --window-id <wx_window_id> focus
 python scripts\winguictl.py window --window-id <wx_window_id> maximize
 ```
 
-## 2.3 移动窗口到屏幕中央
+## 移动窗口到屏幕中央
 
 ```powershell
 # 获取窗口当前位置和大小（从 window list 或 snapshot 获取）
@@ -36,14 +45,14 @@ $newY = ($screen.Height - 800) / 2
 python scripts\winguictl.py window --window-id <wx_window_id> move --x $newX --y $newY
 ```
 
-## 2.4 关闭微信窗口
+## 关闭微信窗口
 
 ```powershell
 # 关闭窗口（对应 close_weixin=True）
 python scripts\winguictl.py window --window-id <wx_window_id> close
 ```
 
-## 2.5 取消窗口置顶
+## 取消窗口置顶
 
 微信主界面操作后可能需要取消置顶，以便独立窗口正常显示：
 

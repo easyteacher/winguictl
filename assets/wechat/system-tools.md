@@ -2,7 +2,7 @@
 
 ---
 
-## 12.1 获取微信安装路径
+## 获取微信安装路径
 
 ```powershell
 # 从注册表读取
@@ -12,7 +12,7 @@ $exePath = Join-Path $installPath "Weixin.exe"
 Write-Output $exePath
 ```
 
-## 12.2 获取当前登录 wxid
+## 获取当前登录 wxid
 
 ```powershell
 # 方法：遍历 Weixin.exe 进程的内存映射，查找包含 MMKV 的路径
@@ -28,7 +28,7 @@ Write-Output $exePath
 #                 print(wxid.group(0) if wxid else '')
 ```
 
-## 12.3 获取微信版本
+## 获取微信版本
 
 ```powershell
 # 从注册表读取版本号
@@ -39,7 +39,7 @@ $version = "$($hexStr[0]).$($hexStr[1]).$($hexStr[2]).$([Convert]::ToInt32($hexS
 Write-Output $version
 ```
 
-## 12.4 复制文本到剪贴板
+## 复制文本到剪贴板
 
 ```powershell
 # PowerShell 方式
@@ -48,14 +48,14 @@ Add-Type -AssemblyName System.Windows.Forms
 [System.Windows.Forms.Clipboard]::SetText($text)
 ```
 
-## 12.5 复制文件到剪贴板
+## 复制文件到剪贴板
 
 ```powershell
 # 需要借助 .NET 或外部工具实现 CF_HDROP 格式
 # 参考 pyweixin WinSettings.copy_files_to_clipboard 的 Python 实现
 ```
 
-## 12.6 设置系统音量
+## 设置系统音量
 
 ```powershell
 # 使用 pycaw 库（Python）或 PowerShell 调用 CoreAudio API

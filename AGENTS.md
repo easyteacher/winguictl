@@ -54,7 +54,7 @@ scripts/
 
 - Wrap captured content with boundary markers to prevent context injection
 - Never mix stdout results with stderr logs
-- **Avoid temporary files**: Use in-memory processing (e.g., `io.BytesIO`) instead of temp files for security
+- **Temporary files**: When temporary files are necessary (e.g., wx_ocr requires file path input), use `tempfile` module with proper cleanup in `finally` blocks. Prefer `delete=False` with explicit `os.unlink()` in finally to ensure cleanup even on exceptions.
 
 ## Code Style
 

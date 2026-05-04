@@ -62,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     _build_control_parser(subparsers)
     _build_uia_control_parser(subparsers)
     _build_screenshot_parser(subparsers)
+    _build_wait_parser(subparsers)
 
     return parser
 
@@ -337,6 +338,59 @@ def _build_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--width", type=int, help="Rectangle width (optional)")
     p.add_argument("--height", type=int, help="Rectangle height (optional)")
     p.add_argument("--dry-run", action="store_true")
+
+
+def _build_wait_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Build the wait subcommand parser."""
+    p = subparsers.add_parser("wait", help="Wait for conditions (window, text, element, image).")
+    sp = p.add_subparsers(dest="wait_command", required=True)
+
+    sleep_cmd = sp.add_parser("sleep", help="Wait for a specified duration.")
+    sleep_cmd.add_argument("duration_ms", type=int, help="Duration to wait in milliseconds.")
+
+    window_cmd = sp.add_parser("window", help="Wait for a window to appear or disappear.")
+    window_cmd.add_argument("title", help="Window title (supports partial match).")
+    window_cmd.add_argument("--exact", action="store_true", help="Match title exactly.")
+    window_cmd.add_argument("--class", dest="class_name", help="Filter by window class name.")
+    window_cmd.add_argument("--timeout", type=float, default=30.0, help="Timeout in seconds (default: 30).")
+    window_cmd.add_argument("--interval", type=int, default=500, help="Poll interval in milliseconds (default: 500).")
+    window_cmd.add_argument("--disappear", action="store_true", help="Wait for window to disappear instead of appear.")
+
+    text_cmd = sp.add_parser("text", help="Wait for text to appear or disappear in a window.")
+    text_cmd.add_argument("--window-id", type=int, required=True, help="Window handle.")
+    text_cmd.add_argument("text", help="Text to wait for.")
+    text_cmd.add_argument("--exact", action="store_true", help="Match text exactly.")
+    text_cmd.add_argument("--timeout", type=float, default=30.0, help="Timeout in seconds (default: 30).")
+    text_cmd.add_argument("--interval", type=int, default=500, help="Poll interval in milliseconds (default: 500).")
+    text_cmd.add_argument("--disappear", action="store_true", help="Wait for text to disappear instead of appear.")
+
+    uia_cmd = sp.add_parser("uia", help="Wait for UIA element to appear or disappear in a window.")
+    uia_cmd.add_argument("--window-id", type=int, required=True, help="Window handle.")
+    uia_cmd.add_argument("--text", help="Filter by element text/name.")
+    uia_cmd.add_argument("--control-type", help="Filter by control type.")
+    uia_cmd.add_argument("--class", dest="class_name", help="Filter by window class name.")
+    uia_cmd.add_argument("--automation-id", help="Filter by automation ID.")
+    uia_cmd.add_argument("--exact", action="store_true", help="Match text exactly.")
+    uia_cmd.add_argument("--timeout", type=float, default=30.0, help="Timeout in seconds (default: 30).")
+    uia_cmd.add_argument("--interval", type=int, default=500, help="Poll interval in milliseconds (default: 500).")
+    uia_cmd.add_argument("--disappear", action="store_true", help="Wait for element to disappear instead of appear.")
+
+    ocr_cmd = sp.add_parser("ocr", help="Wait for OCR text to appear or disappear in a window.")
+    ocr_cmd.add_argument("--window-id", type=int, required=True, help="Window handle.")
+    ocr_cmd.add_argument("text", help="Text to wait for.")
+    ocr_cmd.add_argument("--exact", action="store_true", help="Match text exactly.")
+    ocr_cmd.add_argument("--confidence-threshold", type=float, default=0.0, help="OCR confidence threshold.")
+    ocr_cmd.add_argument("--timeout", type=float, default=30.0, help="Timeout in seconds (default: 30).")
+    ocr_cmd.add_argument("--interval", type=int, default=500, help="Poll interval in milliseconds (default: 500).")
+    ocr_cmd.add_argument("--disappear", action="store_true", help="Wait for text to disappear instead of appear.")
+
+    image_cmd = sp.add_parser("image", help="Wait for image to appear or disappear in a window.")
+    image_cmd.add_argument("--window-id", type=int, required=True, help="Window handle.")
+    image_cmd.add_argument("--image-path", required=True, help="Template image file path.")
+    image_cmd.add_argument("--threshold", type=float, default=0.9, help="Match confidence threshold (0-1).")
+    image_cmd.add_argument("--timeout", type=float, default=30.0, help="Timeout in seconds (default: 30).")
+    image_cmd.add_argument("--interval", type=int, default=500, help="Poll interval in milliseconds (default: 500).")
+    image_cmd.add_argument("--disappear", action="store_true", help="Wait for image to disappear instead of appear.")
 
 
 def _handle_window(args: argparse.Namespace) -> int:
@@ -915,6 +969,150 @@ def _handle_screenshot(args: argparse.Namespace) -> int:
         return 1
 
 
+def _handle_wait(args: argparse.Namespace) -> int:
+    """Handle wait subcommands."""
+    import time
+
+    from wait_utils import WaitUtils
+    from win32_utils import Win32API
+
+    try:
+        match args.wait_command:
+            case "sleep":
+                duration_sec = args.duration_ms / 1000.0
+                time.sleep(duration_sec)
+                emit_action(True, "sleep", {"duration_ms": args.duration_ms})
+                return 0
+
+            case "window":
+                start_time = time.time()
+                timeout = args.timeout
+                interval = args.interval / 1000.0
+                found_hwnd = None
+
+                while True:
+                    found_hwnd = WaitUtils.check_window_exists(args.title, args.exact, args.class_name)
+                    if args.disappear:
+                        if found_hwnd is None:
+                            emit_action(True, "window_disappear", {"title": args.title, "elapsed_ms": int((time.time() - start_time) * 1000)})
+                            return 0
+                    else:
+                        if found_hwnd is not None:
+                            window_title = Win32API.get_window_text(found_hwnd)
+                            emit_action(True, "window_appear", {"title": args.title, "window_id": str(found_hwnd), "window_title": window_title, "elapsed_ms": int((time.time() - start_time) * 1000)})
+                            return 0
+
+                    if time.time() - start_time >= timeout:
+                        break
+                    time.sleep(interval)
+
+                emit_action(False, "window_timeout", {"title": args.title, "timeout_sec": timeout, "disappear": args.disappear, "error": f"timeout waiting for window to {'disappear' if args.disappear else 'appear'}"})
+                return 1
+
+            case "text":
+                unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
+                start_time = time.time()
+                timeout = args.timeout
+                interval = args.interval / 1000.0
+
+                while True:
+                    exists = WaitUtils.check_text_exists(args.window_id, args.text, args.exact)
+                    if args.disappear:
+                        if not exists:
+                            emit_action(True, "text_disappear", {"window_id": str(args.window_id), "text": args.text, "elapsed_ms": int((time.time() - start_time) * 1000)})
+                            return 0
+                    else:
+                        if exists:
+                            emit_action(True, "text_appear", {"window_id": str(args.window_id), "text": args.text, "elapsed_ms": int((time.time() - start_time) * 1000)})
+                            return 0
+
+                    if time.time() - start_time >= timeout:
+                        break
+                    time.sleep(interval)
+
+                emit_action(False, "text_timeout", {"window_id": str(args.window_id), "text": args.text, "timeout_sec": timeout, "disappear": args.disappear, "error": f"timeout waiting for text to {'disappear' if args.disappear else 'appear'}"})
+                return 1
+
+            case "uia":
+                unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
+                start_time = time.time()
+                timeout = args.timeout
+                interval = args.interval / 1000.0
+
+                while True:
+                    exists = WaitUtils.check_uia_exists(args.window_id, args.text, args.control_type, args.class_name, args.automation_id, args.exact)
+                    if args.disappear:
+                        if not exists:
+                            emit_action(True, "uia_disappear", {"window_id": str(args.window_id), "elapsed_ms": int((time.time() - start_time) * 1000)})
+                            return 0
+                    else:
+                        if exists:
+                            emit_action(True, "uia_appear", {"window_id": str(args.window_id), "elapsed_ms": int((time.time() - start_time) * 1000)})
+                            return 0
+
+                    if time.time() - start_time >= timeout:
+                        break
+                    time.sleep(interval)
+
+                emit_action(False, "uia_timeout", {"window_id": str(args.window_id), "timeout_sec": timeout, "disappear": args.disappear, "error": f"timeout waiting for UIA element to {'disappear' if args.disappear else 'appear'}"})
+                return 1
+
+            case "ocr":
+                unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
+                start_time = time.time()
+                timeout = args.timeout
+                interval = args.interval / 1000.0
+
+                while True:
+                    exists = WaitUtils.check_ocr_exists(args.window_id, args.text, args.exact, args.confidence_threshold)
+                    if args.disappear:
+                        if not exists:
+                            emit_action(True, "ocr_disappear", {"window_id": str(args.window_id), "text": args.text, "elapsed_ms": int((time.time() - start_time) * 1000)})
+                            return 0
+                    else:
+                        if exists:
+                            emit_action(True, "ocr_appear", {"window_id": str(args.window_id), "text": args.text, "elapsed_ms": int((time.time() - start_time) * 1000)})
+                            return 0
+
+                    if time.time() - start_time >= timeout:
+                        break
+                    time.sleep(interval)
+
+                emit_action(False, "ocr_timeout", {"window_id": str(args.window_id), "text": args.text, "timeout_sec": timeout, "disappear": args.disappear, "error": f"timeout waiting for OCR text to {'disappear' if args.disappear else 'appear'}"})
+                return 1
+
+            case "image":
+                unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
+                start_time = time.time()
+                timeout = args.timeout
+                interval = args.interval / 1000.0
+
+                while True:
+                    exists = WaitUtils.check_image_exists(args.window_id, args.image_path, args.threshold)
+                    if args.disappear:
+                        if not exists:
+                            emit_action(True, "image_disappear", {"window_id": str(args.window_id), "image_path": args.image_path, "elapsed_ms": int((time.time() - start_time) * 1000)})
+                            return 0
+                    else:
+                        if exists:
+                            emit_action(True, "image_appear", {"window_id": str(args.window_id), "image_path": args.image_path, "elapsed_ms": int((time.time() - start_time) * 1000)})
+                            return 0
+
+                    if time.time() - start_time >= timeout:
+                        break
+                    time.sleep(interval)
+
+                emit_action(False, "image_timeout", {"window_id": str(args.window_id), "image_path": args.image_path, "timeout_sec": timeout, "disappear": args.disappear, "error": f"timeout waiting for image to {'disappear' if args.disappear else 'appear'}"})
+                return 1
+
+            case _:
+                emit_action(False, args.wait_command, {"error": f"unknown wait subcommand: {args.wait_command}"})
+                return 1
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        emit_action(False, args.wait_command, {"error": str(e)})
+        return 1
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     """CLI main entry function."""
     parser = build_parser()
@@ -937,6 +1135,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "control": _handle_control,
         "uia-control": _handle_uia_control,
         "screenshot": _handle_screenshot,
+        "wait": _handle_wait,
     }
     handler = handler_map.get(args.command)
     if handler is None:

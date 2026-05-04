@@ -101,6 +101,8 @@ def _build_find_parser(subparsers: argparse._SubParsersAction) -> None:
     find_uia = sp.add_parser("uia", help="Find UIA controls inside a window.")
     find_uia.add_argument("--text")
     find_uia.add_argument("--control-type")
+    find_uia.add_argument("--class", dest="class_name", help="Filter by window class name")
+    find_uia.add_argument("--automation-id", help="Filter by automation ID")
     find_uia.add_argument("--action", help="Filter by supported uia-control action (e.g. set-text, invoke)")
     find_uia.add_argument("--exact", action="store_true")
 
@@ -418,7 +420,15 @@ def _handle_find(args: argparse.Namespace) -> int:
                 content = FindDriver.find_text(args.window_id, args.text, exact=args.exact)
                 print(wrap_with_boundary(content, nonce))
             case "uia":
-                content = FindDriver.find_uia(args.window_id, text=args.text, control_type=args.control_type, action=args.action, exact=args.exact)
+                content = FindDriver.find_uia(
+                    args.window_id,
+                    text=args.text,
+                    control_type=args.control_type,
+                    class_name=args.class_name,
+                    automation_id=args.automation_id,
+                    action=args.action,
+                    exact=args.exact,
+                )
                 print(wrap_with_boundary(content, nonce))
             case "ocr":
                 result = OCRDriver.find_ocr_text(args.window_id, args.text, exact=args.exact, confidence_threshold=args.confidence_threshold)

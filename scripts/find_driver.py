@@ -240,12 +240,14 @@ class FindDriver:
         window_id: int,
         text: Optional[str] = None,
         control_type: Optional[str] = None,
+        class_name: Optional[str] = None,
+        automation_id: Optional[str] = None,
         action: Optional[str] = None,
         exact: bool = False,
     ) -> str:
         """Find controls through the UIA tree.
 
-        At least one of text or control_type filter must be provided.
+        At least one filter must be provided.
 
         Note: The search includes the window wrapper itself as the first candidate.
         If the window's own name/control_type matches the filter, it will appear
@@ -259,13 +261,15 @@ class FindDriver:
             window_id: Window handle
             text: Text filter condition (optional)
             control_type: Control type filter condition (optional)
+            class_name: Window class name filter condition (optional)
+            automation_id: Automation ID filter condition (optional)
             action: Supported action filter condition (optional, e.g. "set-text")
             exact: Whether to match exactly
 
         Returns:
             Formatted matching result string with window-relative coordinates.
         """
-        if text is None and control_type is None and action is None:
+        if text is None and control_type is None and class_name is None and automation_id is None and action is None:
             raise ValueError("find_uia requires at least one filter")
         desktop = _get_uia_desktop()
         wrapper = desktop.window(handle=window_id)
@@ -301,6 +305,8 @@ class FindDriver:
 
         lowered_text = normalize(text).casefold() if text is not None else None
         lowered_ct = normalize(control_type).casefold() if control_type is not None else None
+        lowered_class = normalize(class_name).casefold() if class_name is not None else None
+        lowered_aid = normalize(automation_id).casefold() if automation_id is not None else None
 
         iter_kwargs = {"control_type": uia_control_type} if uia_control_type else {}
         candidates = itertools.chain([wrapper], wrapper.iter_descendants(**iter_kwargs))
@@ -338,12 +344,31 @@ class FindDriver:
                 continue
 
             candidate_automation_id = normalize(getattr(info, "auto_id", None) or getattr(info, "automation_id", ""))
+            candidate_class_name = normalize(getattr(info, "class_name", ""))
+
+            if class_name is not None:
+                class_cf = candidate_class_name.casefold()
+                if exact:
+                    if class_cf != lowered_class:
+                        continue
+                else:
+                    if lowered_class not in class_cf:
+                        continue
+
+            if automation_id is not None:
+                aid_cf = candidate_automation_id.casefold()
+                if exact:
+                    if aid_cf != lowered_aid:
+                        continue
+                else:
+                    if lowered_aid not in aid_cf:
+                        continue
+
             if candidate_automation_id:
                 automation_ids.append(candidate_automation_id)
             element_id = FindDriver._get_uia_element_id(info)
             control_id = getattr(info, "control_id", None)
             runtime_id = _format_runtime_id(getattr(info, "runtime_id", None))
-            candidate_class_name = normalize(getattr(info, "class_name", ""))
 
             if runtime_id in seen_runtime_ids:
                 continue

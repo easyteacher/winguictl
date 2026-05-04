@@ -10,6 +10,7 @@ element finding, interaction operations, control manipulation, and screenshot ca
 """
 
 import argparse
+import io
 import logging
 import sys
 from typing import TYPE_CHECKING, Optional
@@ -23,6 +24,11 @@ from output_utils import (
     unwrap_result,
     wrap_with_boundary,
 )
+
+if sys.stdout.encoding != "utf-8":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+if sys.stderr.encoding != "utf-8":
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 if TYPE_CHECKING:
     from find_driver import FindDriver

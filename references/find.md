@@ -99,6 +99,33 @@ python scripts\winguictl.py find --window-id <id> uia --class Button --text "Sub
 python scripts\winguictl.py find --window-id <id> uia --automation-id "btn" --control-type Button
 ```
 
+### Performance Options
+
+For Qt applications (Kate, Qt Creator, etc.), UIA tree traversal can be slow. Use these flags to improve performance:
+
+#### Skip collecting supported actions
+
+```powershell
+python scripts\winguictl.py find --window-id <id> uia --text "Submit" --skip-actions
+```
+
+#### Skip collecting element state
+
+```powershell
+python scripts\winguictl.py find --window-id <id> uia --text "Submit" --skip-state
+```
+
+#### Skip both for maximum performance
+
+```powershell
+python scripts\winguictl.py find --window-id <id> uia --text "Submit" --skip-actions --skip-state
+```
+
+| Flag | Description | Note |
+|------|-------------|------|
+| `--skip-actions` | Skip collecting supported actions | When used, `--action` filter is ignored |
+| `--skip-state` | Skip collecting element state | State info (toggle state, etc.) will not be available |
+
 ### UIA Control Types
 
 The `--control-type` parameter accepts standard UIA (UI Automation) control types, with case-insensitive fuzzy matching:

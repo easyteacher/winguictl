@@ -37,6 +37,40 @@ Output example:
 python scripts\winguictl.py snapshot --window-id <window_id> uia
 ```
 
+### Performance Options
+
+For Qt applications (Kate, Qt Creator, etc.), UIA tree traversal can be slow due to Qt's accessibility implementation. Use these flags to improve performance:
+
+#### Skip collecting supported actions
+
+```powershell
+python scripts\winguictl.py snapshot --window-id <window_id> uia --skip-actions
+```
+
+#### Skip collecting element state
+
+```powershell
+python scripts\winguictl.py snapshot --window-id <window_id> uia --skip-state
+```
+
+#### Skip both for maximum performance
+
+```powershell
+python scripts\winguictl.py snapshot --window-id <window_id> uia --skip-actions --skip-state
+```
+
+| Flag | Description | Performance Impact |
+|------|-------------|-------------------|
+| `--skip-actions` | Skip collecting supported actions (derived from UIA patterns) | Significant for Qt apps |
+| `--skip-state` | Skip collecting element state (toggle state, selection state, etc.) | Moderate for Qt apps |
+
+### Note
+
+These flags are especially useful for:
+- Qt applications with modal dialogs (save dialogs, message boxes)
+- Large UIA trees where action/state information is not needed
+- Quick structure inspection without interaction requirements
+
 Output includes:
 - `control_type` - UIA control type
 - `class` - Window class name

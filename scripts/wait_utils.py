@@ -14,9 +14,10 @@ Provides helper functions for checking various conditions:
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from find_driver import FindDriver
+from models import ElementInfo
 from ocr_driver import OCRDriver
 from win32_utils import Win32API
 from windows_driver import WindowsDriver
@@ -28,8 +29,8 @@ class WaitUtils:
     """Utility class for checking wait conditions."""
 
     @staticmethod
-    def check_window_exists(title: str, exact: bool, class_name: Optional[str] = None) -> Optional[int]:
-        """Check if window exists and return its handle, or None if not found.
+    def check_window_exists(title: str, exact: bool, class_name: Optional[str] = None) -> Optional[dict[str, Any]]:
+        """Check if window exists and return its info, or None if not found.
 
         Args:
             title: Window title to match (supports partial match by default)
@@ -37,7 +38,7 @@ class WaitUtils:
             class_name: Optional window class name filter
 
         Returns:
-            Window handle if found, None otherwise
+            Window info dict if found, None otherwise
         """
         windows = WindowsDriver.list_windows()
         title_lower = title.casefold()
@@ -54,12 +55,18 @@ class WaitUtils:
                 actual_class = Win32API.get_class_name(int(win.window_id))
                 if actual_class and class_name.casefold() not in actual_class.casefold():
                     continue
-            return int(win.window_id)
+            return {
+                "window_id": win.window_id,
+                "title": win.title,
+                "class_name": Win32API.get_class_name(int(win.window_id)),
+                "process": win.process_name,
+                "pid": win.process_id,
+            }
         return None
 
     @staticmethod
-    def check_text_exists(window_id: int, text: str, exact: bool) -> bool:
-        """Check if text exists in window.
+    def check_text_exists(window_id: int, text: str, exact: bool) -> Optional[str]:
+        """Check if text exists in window and return matched text.
 
         Args:
             window_id: Window handle
@@ -67,14 +74,16 @@ class WaitUtils:
             exact: Whether to match exactly
 
         Returns:
-            True if text found, False otherwise
+            Matched text if found, None otherwise
         """
         try:
             result = FindDriver.find_text(window_id, text, exact)
-            return bool(result.strip())
+            if result.strip():
+                return result.strip()
+            return None
         except Exception:  # pylint: disable=broad-exception-caught
             _logger.exception("Failed to check text existence in window %d", window_id)
-            return False
+            return None
 
     @staticmethod
     def check_uia_exists(
@@ -84,8 +93,8 @@ class WaitUtils:
         class_name: Optional[str] = None,
         automation_id: Optional[str] = None,
         exact: bool = False,
-    ) -> bool:
-        """Check if UIA element exists in window.
+    ) -> Optional[str]:
+        """Check if UIA element exists in window and return element info.
 
         Args:
             window_id: Window handle
@@ -96,7 +105,7 @@ class WaitUtils:
             exact: Whether to match text exactly
 
         Returns:
-            True if element found, False otherwise
+            Element info string if found, None otherwise
         """
         try:
             result = FindDriver.find_uia(
@@ -109,14 +118,16 @@ class WaitUtils:
                 skip_actions=True,
                 skip_state=True,
             )
-            return bool(result.strip())
+            if result.strip():
+                return result.strip()
+            return None
         except Exception:  # pylint: disable=broad-exception-caught
             _logger.exception("Failed to check UIA element existence in window %d", window_id)
-            return False
+            return None
 
     @staticmethod
-    def check_ocr_exists(window_id: int, text: str, exact: bool, confidence: float = 0.0) -> bool:
-        """Check if OCR text exists in window.
+    def check_ocr_exists(window_id: int, text: str, exact: bool, confidence: float = 0.0) -> list[ElementInfo]:
+        """Check if OCR text exists in window and return matched elements.
 
         Args:
             window_id: Window handle
@@ -125,18 +136,18 @@ class WaitUtils:
             confidence: OCR confidence threshold (default: 0.0)
 
         Returns:
-            True if text found, False otherwise
+            List of matched ElementInfo objects (empty if not found)
         """
         try:
             matches = OCRDriver.find_ocr_text(window_id, text, exact, confidence)
-            return len(matches) > 0
+            return matches
         except Exception:  # pylint: disable=broad-exception-caught
             _logger.exception("Failed to check OCR text existence in window %d", window_id)
-            return False
+            return []
 
     @staticmethod
-    def check_image_exists(window_id: int, image_path: str, threshold: float = 0.9) -> bool:
-        """Check if image exists in window.
+    def check_image_exists(window_id: int, image_path: str, threshold: float = 0.9) -> list[ElementInfo]:
+        """Check if image exists in window and return matched positions.
 
         Args:
             window_id: Window handle
@@ -144,11 +155,11 @@ class WaitUtils:
             threshold: Match confidence threshold (default: 0.9)
 
         Returns:
-            True if image found, False otherwise
+            List of matched ElementInfo objects (empty if not found)
         """
         try:
             matches = FindDriver.find_image(window_id, image_path, threshold)
-            return len(matches) > 0
+            return matches
         except Exception:  # pylint: disable=broad-exception-caught
             _logger.exception("Failed to check image existence in window %d", window_id)
-            return False
+            return []

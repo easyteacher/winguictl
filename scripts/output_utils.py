@@ -10,11 +10,14 @@ building control information, and generating boundary markers.
 """
 
 import json
+import logging
 import secrets
 from typing import TYPE_CHECKING, Any, Optional
 
 from models import ActionResult, Result, WindowInfo
 from win32_utils import Win32API
+
+_logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from uia_driver import UIADriver
@@ -268,3 +271,56 @@ def validate_threshold(value: float, name: str) -> None:
     """
     if not 0.0 <= value <= 1.0:
         raise ValueError(f"{name} must be between 0.0 and 1.0, got: {value}")
+
+
+def build_error_context(window_id: Optional[int]) -> dict:
+    """Build error context with window bounds and available element hints.
+
+    When an operation fails, this provides the agent with enough information
+    to diagnose and recover from the error without requiring a separate
+    snapshot/find call.
+
+    Args:
+        window_id: Window handle (may be None if not yet validated)
+
+    Returns:
+        Dictionary with window_bounds and available_elements hints
+    """
+    context: dict = {}
+    if window_id is None:
+        return context
+
+    bounds_result = Win32API.get_window_bounds(window_id)
+    if bounds_result.is_ok:
+        context["window_bounds"] = bounds_result.value.to_dict()
+
+    try:
+        from uia_driver import _get_uia_desktop
+        desktop = _get_uia_desktop()
+        wrapper = desktop.window(handle=window_id)
+        hints: list[str] = []
+        count = 0
+        for child in wrapper.iter_descendants():
+            if count >= 10:
+                hints.append("...")
+                break
+            info = child.element_info
+            name = (getattr(info, "name", "") or "").strip()
+            ct = (getattr(info, "control_type", "") or "").strip()
+            aid = (getattr(info, "auto_id", None) or getattr(info, "automation_id", "") or "").strip()
+            parts = []
+            if name:
+                parts.append(f'"{name}"')
+            if ct:
+                parts.append(f"control_type={ct}")
+            if aid:
+                parts.append(f"automation_id={aid}")
+            if parts:
+                hints.append(" ".join(parts))
+                count += 1
+        if hints:
+            context["available_elements_hint"] = hints
+    except Exception:  # pylint: disable=broad-exception-caught
+        _logger.exception("Failed to collect error context elements")
+
+    return context

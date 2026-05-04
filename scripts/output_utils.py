@@ -13,7 +13,7 @@ import json
 import secrets
 from typing import TYPE_CHECKING, Any, Optional
 
-from models import ActionResult, Ok, Result, WindowInfo
+from models import ActionResult, Result, WindowInfo
 from win32_utils import Win32API
 
 if TYPE_CHECKING:

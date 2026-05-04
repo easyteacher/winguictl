@@ -138,10 +138,11 @@ def _build_action_parser(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--window-id", type=int, help="Window handle (required for relative coordinates)")
     sp = p.add_subparsers(dest="action_command", required=True)
 
-    click = sp.add_parser("click", help="Click at coordinates.")
+    click = sp.add_parser("click", help="Click at coordinates or element center.")
     coord_group = click.add_mutually_exclusive_group(required=True)
     coord_group.add_argument("--relative-x", type=int, help="X coordinate relative to window (requires --relative-y and --window-id)")
     coord_group.add_argument("--absolute-x", type=int, help="Absolute screen X coordinate (requires --absolute-y)")
+    coord_group.add_argument("--element-id", help="UIA element ID (automation_id or runtime_id), clicks element center")
     click.add_argument("--relative-y", type=int, help="Y coordinate relative to window (requires --relative-x and --window-id)")
     click.add_argument("--absolute-y", type=int, help="Absolute screen Y coordinate (requires --absolute-x)")
     click.add_argument("--dry-run", action="store_true")
@@ -552,6 +553,7 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
         resolve_window_context,
         validate_relative_coords,
     )
+    from uia_driver import UIADriver
     from win32_utils import Win32API
     from windows_driver import WindowsDriver
 
@@ -560,6 +562,7 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
             case "click":
                 is_absolute_mode = args.absolute_x is not None
                 is_relative_mode = args.relative_x is not None
+                is_element_mode = args.element_id is not None
 
                 if is_absolute_mode:
                     if args.absolute_y is None:
@@ -601,8 +604,31 @@ def _handle_action(args: argparse.Namespace) -> int:  # pylint: disable=too-many
                         "relative": {"x": relative_x, "y": relative_y},
                         **point_ctx,
                     }
+                elif is_element_mode:
+                    if args.window_id is None:
+                        raise ValueError("--window-id is required for --element-id")
+                    unwrap_result(Win32API.validate_window_id(args.window_id), "invalid window")
+                    window_title, bounds = resolve_window_context(args.window_id)
+                    wrapper = UIADriver._get_uia_wrapper(args.window_id, args.element_id)
+                    element_info = wrapper.element_info
+                    rect = getattr(element_info, "rectangle", None)
+                    if rect is None or rect.right <= rect.left or rect.bottom <= rect.top:
+                        raise ValueError(f"Element has no valid bounding rectangle: {args.element_id}")
+                    absolute_x = (rect.left + rect.right) // 2
+                    absolute_y = (rect.top + rect.bottom) // 2
+                    relative_x = absolute_x - bounds.x
+                    relative_y = absolute_y - bounds.y
+                    point_ctx = build_point_context(absolute_x, absolute_y)
+                    data = {
+                        "window_id": str(args.window_id),
+                        "window_title": window_title,
+                        "element_id": args.element_id,
+                        "relative": {"x": relative_x, "y": relative_y},
+                        "absolute": {"x": absolute_x, "y": absolute_y},
+                        **point_ctx,
+                    }
                 else:
-                    raise ValueError("either --absolute-x/--absolute-y or --relative-x/--relative-y with --window-id is required")
+                    raise ValueError("either --absolute-x/--absolute-y, --relative-x/--relative-y with --window-id, or --element-id with --window-id is required")
                 if not args.dry_run:
                     if args.window_id:
                         WindowsDriver.focus_window(args.window_id)

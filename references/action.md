@@ -112,6 +112,9 @@ python scripts\winguictl.py action --window-id <id> click --relative-x 100 --rel
 # Click at absolute screen coordinates (no --window-id required)
 python scripts\winguictl.py action click --absolute-x 500 --absolute-y 300
 
+# Click element center by element-id (requires --window-id)
+python scripts\winguictl.py action --window-id <id> click --element-id <element_id>
+
 # Preview click coordinates (without executing actual click)
 python scripts\winguictl.py action --window-id <id> click --relative-x 100 --relative-y 200 --dry-run
 ```
@@ -122,6 +125,7 @@ python scripts\winguictl.py action --window-id <id> click --relative-x 100 --rel
 |-----------|-------------|
 | `--relative-x`, `--relative-y` | Window-relative coordinates (requires `--window-id`) |
 | `--absolute-x`, `--absolute-y` | Absolute screen coordinates (mutually exclusive with relative) |
+| `--element-id` | UIA element ID (automation_id or runtime_id), clicks element center (requires `--window-id`) |
 
 ### Coordinate Validation
 
@@ -135,6 +139,29 @@ For relative coordinates, values must be within the window bounds:
 **Example**: For a window with bounds `(200, 100, 500x600)`:
 - Valid relative coordinates: `(0, 0)` to `(499, 599)`
 - Invalid relative coordinates: `(-1, 100)`, `(500, 300)`, `(100, 600)`
+
+### Click Element Center
+
+When using `--element-id`, the command automatically:
+1. Finds the UIA element by automation_id or runtime_id
+2. Gets the element's bounding rectangle
+3. Calculates the center point
+4. Clicks at the center
+
+This is more reliable than manually calculating coordinates because:
+- No need to manually determine element position
+- Automatically handles element position changes
+- Works with elements that have dynamic layouts
+
+**Example**:
+```powershell
+# Find element first
+python scripts\winguictl.py find --window-id <id> uia --text "发送" --control-type Button
+# Output: element_id: send_button
+
+# Click the element center
+python scripts\winguictl.py action --window-id <id> click --element-id send_button
+```
 
 ## Click Image
 
@@ -350,7 +377,7 @@ Prefer `scroll` over `press-key` with `{PGDN}`/`{PGUP}` for scrolling:
 
 | Subcommand | Description | Parameters |
 |--------|------|------|
-| `click` | Click coordinates | `--relative-x`, `--relative-y` (with `--window-id`) OR `--absolute-x`, `--absolute-y`, `--dry-run` |
+| `click` | Click coordinates or element center | `--relative-x`, `--relative-y` (with `--window-id`) OR `--absolute-x`, `--absolute-y` OR `--element-id` (with `--window-id`), `--dry-run` |
 | `click-image` | Click image | `--image-path`, `--threshold`, `--dry-run` |
 | `drag` | Drag | `--relative-x/y1/2` (with `--window-id`) OR `--absolute-x/y1/2`, `--duration-ms`, `--dry-run` |
 | `type` | Type text | `--text`, `--dry-run` |

@@ -2,61 +2,100 @@
 
 Capture window screenshots.
 
-## Warning
+## ⚠️ Warning
 
-Screenshots capture all visible content in the target window, which may include sensitive information. Close or hide sensitive applications (password managers, messaging apps, etc.) before taking screenshots.
+Screenshots capture all visible content, which may include sensitive information. Close sensitive applications before taking screenshots.
 
-## Take Screenshot
+## Commands
+
+| Command | Description | Parameters |
+|---------|-------------|------------|
+| `screenshot` | Capture window screenshot | `--window-id`, `--output`, `--x`, `--y`, `--width`, `--height`, `--dry-run` |
+
+## Usage
 
 ```powershell
-# Capture the entire window and save as PNG
-python scripts\winguictl.py screenshot --window-id <id> --output artifacts\shot.png
+# Capture entire window
+screenshot --window-id <id> --output shot.png
 
 # Save as BMP
-python scripts\winguictl.py screenshot --window-id <id> --output artifacts\shot.bmp
+screenshot --window-id <id> --output shot.bmp
 
-# Capture a specific rectangular region within the window
-python scripts\winguictl.py screenshot --window-id <id> --output artifacts\region.png --x 100 --y 50 --width 300 --height 200
+# Capture rectangular region
+screenshot --window-id <id> --output region.png --x 100 --y 50 --width 300 --height 200
 
-# Preview screenshot output path (without executing actual screenshot)
-python scripts\winguictl.py screenshot --window-id <id> --output artifacts\shot.png --dry-run
+# Preview mode
+screenshot --window-id <id> --output shot.png --dry-run
 ```
 
-## Output Examples
+## Parameters
 
-Successful screenshot:
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `--window-id` | Window handle | Yes |
+| `--output` | Output file path (`.png` or `.bmp`) | Yes |
+| `--x` | Left offset (window-relative) | No (region capture) |
+| `--y` | Top offset (window-relative) | No (region capture) |
+| `--width` | Region width | No (region capture) |
+| `--height` | Region height | No (region capture) |
+| `--dry-run` | Preview mode | No |
+
+## Rectangular Region
+
+When all four region parameters (`--x`, `--y`, `--width`, `--height`) are provided, only the specified region is captured. All four must be provided together.
+
+**Coordinate origin**: Window's top-left corner (excluding title bar border).
+
+## Output Format
+
+### Full Window
+
 ```json
-{"ok": true, "code": "OK", "message": "screenshot executed", "data": {"window_id": "123456", "output": "artifacts\\shot.png"}}
+{
+  "ok": true,
+  "code": "OK",
+  "message": "screenshot executed",
+  "data": {
+    "window_id": "123456",
+    "output": "artifacts\\shot.png"
+  }
+}
 ```
 
-Rectangular region screenshot:
+### Rectangular Region
+
 ```json
-{"ok": true, "code": "OK", "message": "screenshot executed", "data": {"window_id": "123456", "output": "artifacts\\region.png", "rect": {"x": 100, "y": 50, "width": 300, "height": 200}}}
+{
+  "ok": true,
+  "code": "OK",
+  "message": "screenshot executed",
+  "data": {
+    "window_id": "123456",
+    "output": "artifacts\\region.png",
+    "rect": {
+      "x": 100,
+      "y": 50,
+      "width": 300,
+      "height": 200
+    }
+  }
+}
 ```
 
-Preview mode (--dry-run):
+### Preview Mode
+
 ```json
-{"ok": true, "code": "DRY_RUN", "message": "screenshot preview generated", "data": {"window_id": "123456", "output": "artifacts\\shot.png"}}
+{
+  "ok": true,
+  "code": "DRY_RUN",
+  "message": "screenshot preview generated",
+  "data": {
+    "window_id": "123456",
+    "output": "artifacts\\shot.png"
+  }
+}
 ```
-
-## Parameter Description
-
-| Parameter | Description |
-|------|------|
-| `--window-id` | Window ID (required) |
-| `--output` | Output file path, supports `.png` or `.bmp` format (required) |
-| `--x` | Left boundary of the rectangular region, relative to window top-left (optional) |
-| `--y` | Top boundary of the rectangular region, relative to window top-left (optional) |
-| `--width` | Width of the rectangular region (optional) |
-| `--height` | Height of the rectangular region (optional) |
-| `--dry-run` | Preview mode, does not execute actual screenshot |
-
-## Rectangular Region Screenshot
-
-When all four parameters `--x`, `--y`, `--width`, `--height` are specified, only the specified rectangular region within the window is captured. All four parameters must be provided together, otherwise the entire window is captured.
-
-The coordinate origin is the window's top-left corner (excluding title bar border).
 
 ## Dependencies
 
-- Requires `Pillow`: `pip install Pillow`
+- `Pillow`: `pip install Pillow`

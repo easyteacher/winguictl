@@ -1,34 +1,47 @@
 # Clipboard Commands
 
-Clipboard operations for copying files/text and getting text from the Windows clipboard.
+Clipboard operations for copying files/text and getting text.
 
 ## Commands
 
-### copy-files
+| Subcommand | Description | Parameters | Example |
+|------------|-------------|------------|---------|
+| `copy-files` | Copy files to clipboard | `files` (positional, one or more) | `clipboard copy-files "C:\file1.txt" "C:\file2.txt"` |
+| `copy-text` | Copy text to clipboard | `text` (positional) | `clipboard copy-text "Hello, World!"` |
+| `get-text` | Get text from clipboard | None | `clipboard get-text` |
 
-Copy files to the Windows clipboard. This allows pasting files in applications like Windows Explorer.
+## Usage
 
-```powershell
-python scripts\winguictl.py clipboard copy-files <file1> [file2] ...
-```
-
-#### Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `files` | One or more file paths to copy to clipboard |
-
-#### Examples
+### Copy Files
 
 ```powershell
-# Copy a single file
-python scripts\winguictl.py clipboard copy-files "C:\Users\Documents\report.pdf"
+# Copy single file
+clipboard copy-files "C:\Documents\report.pdf"
 
 # Copy multiple files
-python scripts\winguictl.py clipboard copy-files "C:\file1.txt" "C:\file2.txt" "D:\images\photo.png"
+clipboard copy-files "C:\file1.txt" "C:\file2.txt" "D:\images\photo.png"
 ```
 
-#### Output
+### Copy Text
+
+```powershell
+# Copy simple text
+clipboard copy-text "Hello, World!"
+
+# Copy text with spaces (use quotes)
+clipboard copy-text "This is a longer text string"
+```
+
+### Get Text
+
+```powershell
+# Get text from clipboard
+clipboard get-text
+```
+
+## Output Format
+
+### copy-files
 
 ```json
 {
@@ -44,30 +57,6 @@ python scripts\winguictl.py clipboard copy-files "C:\file1.txt" "C:\file2.txt" "
 
 ### copy-text
 
-Copy text to the Windows clipboard.
-
-```powershell
-python scripts\winguictl.py clipboard copy-text <text>
-```
-
-#### Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `text` | Text string to copy to clipboard |
-
-#### Examples
-
-```powershell
-# Copy simple text
-python scripts\winguictl.py clipboard copy-text "Hello, World!"
-
-# Copy text with spaces (use quotes)
-python scripts\winguictl.py clipboard copy-text "This is a longer text string"
-```
-
-#### Output
-
 ```json
 {
   "ok": true,
@@ -82,35 +71,19 @@ python scripts\winguictl.py clipboard copy-text "This is a longer text string"
 
 ### get-text
 
-Get text from the Windows clipboard.
-
-```powershell
-python scripts\winguictl.py clipboard get-text
-```
-
-#### Output
-
+Returns content with boundary markers:
 ```
 --- WINGUICTL_CONTENT nonce=<nonce> ---
 <clipboard text content>
 --- END_WINGUICTL_CONTENT nonce=<nonce> ---
 ```
 
-#### Examples
-
-```powershell
-# Get text from clipboard
-python scripts\winguictl.py clipboard get-text
-```
-
-#### Error Output
-
-If no text is available in the clipboard:
+### Error (no text in clipboard)
 
 ```json
 {
   "ok": false,
-  "code": "ERROR",
+  "code": "FAILED",
   "message": "get_text failed",
   "data": {
     "error": "no text in clipboard"
@@ -118,28 +91,17 @@ If no text is available in the clipboard:
 }
 ```
 
-## Use Cases
-
-### Preparing Files for Upload
-
-Copy files to clipboard before using paste operations in applications:
-
-### 步骤1：Copy files to clipboard
+## Use Case: Prepare Files for Upload
 
 ```powershell
-python scripts\winguictl.py clipboard copy-files "C:\Documents\report.pdf"
-```
+# Step 1: Copy files to clipboard
+clipboard copy-files "C:\Documents\report.pdf"
 
-### 步骤2：Focus the target application window
+# Step 2: Focus target application window
+window --window-id 12345 focus
 
-```powershell
-python scripts\winguictl.py window --window-id 12345 focus
-```
-
-### 步骤3：Click the paste area or use Ctrl+V
-
-```powershell
-python scripts\winguictl.py action --window-id 12345 hotkey --keys "{CTRL}v"
+# Step 3: Paste (Ctrl+V)
+action --window-id 12345 hotkey --keys "{CTRL}" "v"
 ```
 
 ## Error Handling
@@ -147,5 +109,5 @@ python scripts\winguictl.py action --window-id 12345 hotkey --keys "{CTRL}v"
 | Error | Cause | Solution |
 |-------|-------|----------|
 | `failed to copy files to clipboard` | Clipboard access denied or invalid paths | Ensure paths exist and application has clipboard access |
-| `failed to copy text to clipboard` | Clipboard access denied | Close other applications that might be using clipboard |
-| `no text in clipboard` | Clipboard is empty or contains non-text data | Copy text to clipboard first |
+| `failed to copy text to clipboard` | Clipboard access denied | Close other applications using clipboard |
+| `no text in clipboard` | Clipboard empty or contains non-text data | Copy text to clipboard first |

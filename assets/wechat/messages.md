@@ -282,7 +282,7 @@ python scripts\winguictl.py snapshot --window-id <wx_window_id> uia --skip-actio
 
 ### 步骤1：打开聊天窗口
 
-参见 [setup.md](./setup.md) 中的 [## 打开微信主窗口（重要，后续操作依赖微信主窗口）](./setup.md#打开微信主窗口重要后续操作依赖微信主窗口)
+参见 [window.md](./window.md) 中的窗口定位与激活方法
 
 ### 步骤2：找到"发语音"按钮并点击
 
@@ -338,7 +338,7 @@ python scripts\winguictl.py action --window-id <wx_window_id> press-key --key "{
 
 ### 步骤1：打开群聊窗口
 
-参见 [setup.md](./setup.md) 中的 [## 打开微信主窗口（重要，后续操作依赖微信主窗口）](./setup.md#打开微信主窗口重要后续操作依赖微信主窗口)，然后通过会话列表或搜索打开目标群聊。
+参见 [window.md](./window.md) 中的窗口定位与激活方法，然后通过会话列表或搜索打开目标群聊。
 
 ### 步骤2：输入 #接龙
 

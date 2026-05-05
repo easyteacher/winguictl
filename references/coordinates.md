@@ -1,62 +1,55 @@
 # Coordinate Systems
 
-Understanding the coordinate system used by winguictl commands.
+Understanding winguictl coordinate systems.
 
-## Coordinate Type Labels
+## Coordinate Types
 
-Output uses explicit labels to distinguish coordinate types:
+| Label | Description | Origin |
+|-------|-------------|--------|
+| `relative_rect` | Window-relative coordinates | Window top-left corner |
+| `absolute_rect` | Screen-absolute coordinates | Screen top-left corner |
 
-- `relative_rect` - Window-relative coordinates (origin at window's top-left corner)
-- `absolute_rect` - Screen-absolute coordinates (origin at screen's top-left corner)
+## Commands by Coordinate Type
 
-## Window-Relative Coordinates (`relative_rect`)
+### Window-Relative (`relative_rect`)
 
-Most winguictl commands return **window-relative coordinates**, labeled as `relative_rect`.
+- `snapshot hwnd`
+- `snapshot uia`
+- `snapshot ocr`
+- `find text`
+- `find uia`
+- `find ocr`
+- `find image`
 
-### What Are Window-Relative Coordinates?
+### Screen-Absolute (`absolute_rect`)
 
-Window-relative coordinates are measured from the top-left corner of the window (0, 0), not from the screen origin.
+- `window list`
 
+### Action Command Output
+
+Action commands use nested objects instead of `relative_rect`/`absolute_rect`:
+
+```json
+{
+  "relative": {"x": 100, "y": 200},
+  "absolute": {"x": 500, "y": 300}
+}
 ```
-Screen coordinates:        Window-relative coordinates:
-(0,0)─────────────►       (0,0)─────────────►
-  │                         │
-  │   ┌─────────┐           ┌─────────┐
-  │   │ Window  │    vs     │ Window  │
-  │   │ (591,150)│           │ (0,0)   │
-  │   └─────────┘           └─────────┘
-  ▼                         ▼
-```
 
-### Commands Using `relative_rect`
+- `relative`: Included when using `--relative-x/y` or `--element-id`
+- `absolute`: Included when using `--absolute-x/y` or `--element-id`
 
-| Command | Coordinate System |
-|---------|------------------|
-| `snapshot hwnd` | Window-relative (`relative_rect`) |
-| `snapshot uia` | Window-relative (`relative_rect`) |
-| `snapshot ocr` | Window-relative (`relative_rect`) |
-| `find text` | Window-relative (`relative_rect`) |
-| `find uia` | Window-relative (`relative_rect`) |
-| `find ocr` | Window-relative (`relative_rect`) |
-| `find image` | Window-relative (`relative_rect`) |
+## Using Coordinates
 
-### Commands Using Screen-Absolute Coordinates (`absolute_rect`)
-
-| Command | Coordinate System |
-|---------|------------------|
-| `window list` | Screen-absolute (`absolute_rect` field) |
-
-### Using Coordinates with Action Commands
-
-Window-relative coordinates can be used directly with `action click` commands:
+Window-relative coordinates from `snapshot`/`find` can be used directly with `action click`:
 
 ```powershell
-# Find a button
-python scripts\winguictl.py find --window-id 12345 ocr "Submit"
+# Find button
+find --window-id 12345 ocr "Submit"
 # Output: - "Submit" [relative_rect=(100,200 80x30)]
 
-# Click the button center
-python scripts\winguictl.py action --window-id 12345 click --relative-x 140 --relative-y 215
+# Click button center
+action --window-id 12345 click --relative-x 140 --relative-y 215
 ```
 
-No manual coordinate conversion is needed.
+**No coordinate conversion needed**.

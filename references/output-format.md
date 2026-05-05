@@ -4,30 +4,36 @@ Understanding winguictl command output formats.
 
 ## Content Boundary Markers
 
-All snapshot and find command outputs are wrapped with content boundary markers:
+Snapshot and find commands wrap output with boundary markers:
 
 ```
---- WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
-[output content here]
---- END_WINGUICTL_CONTENT nonce=a1b2c3d4e5f6a7b8 ---
+--- WINGUICTL_CONTENT nonce=<nonce> ---
+[output content]
+--- END_WINGUICTL_CONTENT nonce=<nonce> ---
 ```
 
-The `nonce` is a randomly generated hex string that must match between start and end markers. Always verify the nonce matches before trusting the captured content.
+**Verify nonce matches** before trusting captured content.
 
-## Element Output Format
-
-Elements are formatted as:
+## Element Format
 
 ```
-- "Element Text" [attribute1="value1" attribute2="value2" rect=(x,y width x height)]
+- "Element Text" [attribute1="value1" attribute2="value2" relative_rect=(x,y widthxheight)]
 ```
 
-### Common Attributes
+## Coordinate Attributes
 
 | Attribute | Description |
 |-----------|-------------|
-| `text` | Element text/content (shown in quotes) |
-| `rect` | Bounding rectangle (window-relative coordinates) |
+| `relative_rect` | Window-relative coordinates (origin: window top-left) |
+| `absolute_rect` | Screen-absolute coordinates (origin: screen top-left) |
+
+**Note**: Coordinate type is indicated by attribute name prefix, not generic `rect` field.
+
+## Common Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `text` | Element text/content (in quotes) |
 | `control_type` | UIA or Win32 control type |
 | `class` | Window class name |
 | `hwnd` | Win32 control handle |
@@ -35,11 +41,20 @@ Elements are formatted as:
 | `runtime_id` | UIA runtime ID |
 | `visible` | Whether element is visible |
 | `enabled` | Whether element is enabled |
-| `confidence` | Match confidence (0-1) for OCR/image matching |
+| `confidence` | Match confidence (0-1) for OCR/image |
+| `supported_actions` | Comma-separated UIA actions |
+| `toggle_state` | Toggle state: 0=off, 1=on, 2=indeterminate |
+| `is_expanded` | Expanded state: 0=collapsed, 1=expanded |
+| `is_selected` | Selected state: 0=no, 1=yes |
+| `state` | Window state: "minimized", "maximized" |
+| `foreground` | Foreground window: "true" |
+| `pid` | Process ID |
+| `process` | Process name |
+| `parent_id` | Parent window handle |
 
-## JSON Output Format
+## JSON Output
 
-Some commands (like `action` and `window` operations) output JSON:
+Action and window commands output JSON:
 
 ```json
 {
@@ -53,7 +68,7 @@ Some commands (like `action` and `window` operations) output JSON:
 }
 ```
 
-### Result Codes
+## Result Codes
 
 | Code | Description |
 |------|-------------|

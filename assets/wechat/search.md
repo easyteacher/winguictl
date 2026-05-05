@@ -17,9 +17,7 @@
 
 ### 步骤1：确保微信主界面在前台
 
-```powershell
-python scripts\winguictl.py window --window-id <wx_window_id> focus
-```
+详见 [窗口定位与微信主界面操作](./window.md)
 
 ### 步骤2：定位并激活搜索框
 

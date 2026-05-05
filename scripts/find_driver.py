@@ -57,7 +57,10 @@ def _check_duplicate_automation_ids(automation_ids: list[str]) -> Optional[str]:
     if not duplicates:
         return None
     dup_list = ", ".join(f'"{aid}"' for aid in duplicates)
-    return f"WARNING: Duplicate automation_id detected: {dup_list}. Prefer runtime_id for element identification."
+    return (
+        f"WARNING: Duplicate automation_id detected: {dup_list}. "
+        "Prefer runtime_id for element identification."
+    )
 
 
 def _is_valid_rect(rect) -> bool:
@@ -103,7 +106,11 @@ class FindDriver:
         runtime_id_raw = getattr(info, "runtime_id", None)
         if runtime_id_raw:
             return f"uia-{_format_runtime_id(runtime_id_raw)}"
-        automation_id = (getattr(info, "auto_id", None) or getattr(info, "automation_id", "") or "").strip()
+        automation_id = (
+            getattr(info, "auto_id", None)
+            or getattr(info, "automation_id", "")
+            or ""
+        ).strip()
         if automation_id:
             return automation_id
         handle = getattr(info, "handle", None)
@@ -119,6 +126,7 @@ class FindDriver:
         """Find specified text in the window.
 
         Prioritizes UIA tree search; falls back to Win32 enumeration if no results found.
+        Adds a warning comment to output when UIA search fails and Win32 fallback is used.
 
         Args:
             window_id: Window handle
@@ -127,12 +135,14 @@ class FindDriver:
 
         Returns:
             Formatted matching result string with window-relative coordinates.
+            May include a warning comment if UIA search failed.
         """
         query = text.strip()
         if not query:
             raise ValueError("text query must not be empty")
         matches: list[ElementInfo] = []
         lowered_query = query.casefold()
+        uia_failed = False
 
         try:
             desktop = _get_uia_desktop()
@@ -180,10 +190,16 @@ class FindDriver:
                     continue
         except Exception:  # pylint: disable=broad-exception-caught
             _logger.exception("UIA traversal failed for window %d", window_id)
+            uia_failed = True
 
         if not matches:
             matches = FindDriver._find_text_win32(window_id, text, exact)
-        return "\n".join(ElementFormatter.format_element(m) for m in matches)
+
+        result_lines: list[str] = []
+        if uia_failed and matches:
+            result_lines.append("WARNING: UIA search failed, results from Win32 fallback")
+        result_lines.extend(ElementFormatter.format_element(m) for m in matches)
+        return "\n".join(result_lines)
 
     @staticmethod
     def _find_text_win32(hwnd: int, text: str, exact: bool = False) -> list[ElementInfo]:
@@ -275,7 +291,8 @@ class FindDriver:
         Returns:
             Formatted matching result string with window-relative coordinates.
         """
-        if text is None and control_type is None and class_name is None and automation_id is None and action is None:
+        if text is None and control_type is None and class_name is None \
+                and automation_id is None and action is None:
             raise ValueError("find_uia requires at least one filter")
         desktop = _get_uia_desktop()
         wrapper = desktop.window(handle=window_id)
@@ -350,7 +367,9 @@ class FindDriver:
             if not _is_valid_rect(rect):
                 continue
 
-            candidate_automation_id = normalize(getattr(info, "auto_id", None) or getattr(info, "automation_id", ""))
+            candidate_automation_id = normalize(
+                getattr(info, "auto_id", None) or getattr(info, "automation_id", "")
+            )
             candidate_class_name = normalize(getattr(info, "class_name", ""))
 
             if class_name is not None:

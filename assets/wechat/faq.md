@@ -16,13 +16,13 @@
 - **现象**：`find` 或 `snapshot` 找不到目标控件。
 - **原因**：
   1. 微信版本升级导致 UI 结构变化。
-  2. 语言设置不同，控件文本不匹配。
-  3. 窗口未完全加载。
+  2. 窗口未完全加载。
 - **解决**：
-  1. 更新 `winguictl` 和 `pywinauto` 到最新版。
-  2. 根据实际语言调整查找文本（参考 Uielements.py 中的多语言定义）。
-  3. 在操作前增加 `Start-Sleep` 等待窗口加载。
-  4. 使用 `--skip-actions` 和 `--skip-state` 加速 Qt 应用的 snapshot。
+  1. 带参数运行程序重新激活微信主界面：
+     ```powershell
+     Start-Process "C:\Program Files (x86)\Tencent\Weixin\Weixin.exe" --scene=taskbarpins
+     ```
+  2. 等待窗口加载完成。
 
 ## 坐标点击不准确
 

@@ -17,7 +17,7 @@ Action commands simulate mouse/keyboard input. **Always use `--dry-run` to previ
 | `press-key` | Press single key | `--key` | `action --window-id 12345 press-key --key "{ENTER}"` |
 | `hotkey` | Press key chord | `--keys` | `action --window-id 12345 hotkey --keys "{CTRL}" "{A}"` |
 | `clear-text` | Clear focused text field | None | `action --window-id 12345 clear-text` |
-| `scroll` | Mouse wheel scroll | `--direction`, `--amount`, coordinates | `action --window-id 12345 scroll --direction down --amount 3` |
+| `scroll` | Mouse wheel scroll | `--direction`, `--amount`, coordinates (optional) | `action --window-id 12345 scroll --direction down --amount 3` |
 
 ## Click Methods
 
@@ -66,7 +66,7 @@ All keyboard commands use pywinauto-style braced keys: `{ENTER}`, `{TAB}`, `{ESC
 |-----------|--------|-------------|
 | `--direction` | `up`, `down`, `left`, `right` | Scroll direction (required) |
 | `--amount` | Integer (default: 1) | Number of wheel notches |
-| Coordinates | `--relative-x/y` OR `--absolute-x/y` OR `--element-id` | Scroll position (default: window center) |
+| Coordinates | `--relative-x/y` OR `--absolute-x/y` OR `--element-id` | Scroll position (default: window center, requires `--window-id`) |
 
 **Note**: `action scroll` uses integer `--amount` (wheel notches). Different from `uia-control scroll` which uses `--amount line|page`.
 

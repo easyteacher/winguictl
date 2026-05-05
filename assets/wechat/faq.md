@@ -1,7 +1,5 @@
 # 常见问题与注意事项
 
----
-
 ## 微信未启动/未登录
 
 - **现象**：找不到 `mmui::MainWindow` 窗口，或窗口标题为空。
@@ -63,14 +61,6 @@
 - **现象**：`pyweixin` 无法自动检测微信语言。
 - **原因**：WechatAppex.exe 未初始化（需先打开一次视频号或小程序面板）。
 - **解决**：手动打开一次视频号或小程序面板，或在配置中手动指定语言。
-
-## UIA 遍历性能问题
-
-- **现象**：Qt 应用（如微信）的 UIA snapshot 非常慢。
-- **解决**：使用 `--skip-actions` 和 `--skip-state` 参数：
-  ```powershell
-  python scripts\winguictl.py snapshot --window-id <id> uia --skip-actions --skip-state
-  ```
 
 ## 安全建议
 

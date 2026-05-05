@@ -3,6 +3,12 @@
 本指南基于 `pyweixin` 功能模块，将其转换为 `winguictl` 命令行操作形式，供 Agent 直接查阅和执行。
 - `pyweixin` 仓库：https://github.com/Hello-Mr-Crab/pywechat
 
+## 通用前提条件
+
+在执行任何微信自动化操作前，**必须先确保微信主窗口处于前台可见状态**。这是所有后续操作的基础。
+
+详见：[窗口定位与微信主界面操作](./window.md)
+
 ---
 
 ## 目录

@@ -259,7 +259,10 @@ class TestCLI:
         from winguictl import build_parser
 
         parser = build_parser()
-        args = parser.parse_args(["action", "--window-id", "12345", "click", "--relative-x", "100", "--relative-y", "200"])
+        args = parser.parse_args(
+            ["action", "--window-id", "12345", "click", "--relative-x", "100",
+             "--relative-y", "200"]
+        )
         assert args.command == "action"
         assert args.action_command == "click"
         assert args.relative_x == 100
@@ -287,7 +290,9 @@ class TestCLI:
         from winguictl import build_parser
 
         parser = build_parser()
-        args = parser.parse_args(["uia-control", "--window-id", "12345", "--element-id", "btn1", "click"])
+        args = parser.parse_args(
+            ["uia-control", "--window-id", "12345", "--element-id", "btn1", "click"]
+        )
         assert args.command == "uia-control"
         assert args.uia_control_command == "click"
         assert args.window_id == 12345
@@ -306,7 +311,10 @@ class TestCLI:
         from winguictl import build_parser
 
         parser = build_parser()
-        args = parser.parse_args(["action", "--window-id", "12345", "click", "--relative-x", "100", "--relative-y", "200", "--dry-run"])
+        args = parser.parse_args(
+            ["action", "--window-id", "12345", "click", "--relative-x", "100",
+             "--relative-y", "200", "--dry-run"]
+        )
         assert args.dry_run is True
 
 
@@ -588,7 +596,9 @@ class TestWaitUtilsPoll:
                 return "still here"
             return None
 
-        result = WaitUtils.poll_condition(check_fn, timeout_sec=5.0, interval_sec=0.01, disappear=True)
+        result = WaitUtils.poll_condition(
+            check_fn, timeout_sec=5.0, interval_sec=0.01, disappear=True
+        )
         assert result.found is True
         assert result.data is None
 
@@ -624,7 +634,9 @@ class TestWaitUtilsPoll:
                 return ["item"]
             return []
 
-        result = WaitUtils.poll_list_condition(check_fn, timeout_sec=5.0, interval_sec=0.01, disappear=True)
+        result = WaitUtils.poll_list_condition(
+            check_fn, timeout_sec=5.0, interval_sec=0.01, disappear=True
+        )
         assert result.found is True
 
 
@@ -668,7 +680,9 @@ class TestWaitCLI:
         from winguictl import build_parser
 
         parser = build_parser()
-        args = parser.parse_args(["wait", "--window-id", "12345", "text", "Hello", "--timeout", "5"])
+        args = parser.parse_args(
+            ["wait", "--window-id", "12345", "text", "Hello", "--timeout", "5"]
+        )
         assert args.command == "wait"
         assert args.wait_command == "text"
         assert args.window_id == 12345
@@ -761,8 +775,14 @@ class TestClipboardDriver:
 
         with patch("clipboard_driver.win32clipboard.OpenClipboard"):
             with patch("clipboard_driver.win32clipboard.CloseClipboard"):
-                with patch("clipboard_driver.win32clipboard.IsClipboardFormatAvailable", return_value=True):
-                    with patch("clipboard_driver.win32clipboard.GetClipboardData", return_value="clipboard text"):
+                with patch(
+                    "clipboard_driver.win32clipboard.IsClipboardFormatAvailable",
+                    return_value=True,
+                ):
+                    with patch(
+                        "clipboard_driver.win32clipboard.GetClipboardData",
+                        return_value="clipboard text",
+                    ):
                         result = ClipboardDriver.get_text_from_clipboard()
                         assert result == "clipboard text"
 
@@ -772,7 +792,10 @@ class TestClipboardDriver:
 
         with patch("clipboard_driver.win32clipboard.OpenClipboard"):
             with patch("clipboard_driver.win32clipboard.CloseClipboard"):
-                with patch("clipboard_driver.win32clipboard.IsClipboardFormatAvailable", return_value=False):
+                with patch(
+                    "clipboard_driver.win32clipboard.IsClipboardFormatAvailable",
+                    return_value=False,
+                ):
                     result = ClipboardDriver.get_text_from_clipboard()
                     assert result is None
 

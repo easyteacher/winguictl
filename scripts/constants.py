@@ -34,7 +34,10 @@ except ImportError:
 def check_opencv_available() -> None:
     """Raise RuntimeError if opencv-python is not installed."""
     if not _OPENCV_AVAILABLE:
-        raise RuntimeError("opencv-python is required for image matching. Install with: pip install opencv-python")
+        raise RuntimeError(
+        "opencv-python is required for image matching. "
+        "Install with: pip install opencv-python"
+    )
 
 
 def check_wx_ocr_available() -> None:

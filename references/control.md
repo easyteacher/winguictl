@@ -75,7 +75,7 @@ Control UIA elements via automation_id or runtime_id. Use `snapshot uia` to obta
 | `expand` | Expand node | `--window-id`, `--element-id` |
 | `collapse` | Collapse node | `--window-id`, `--element-id` |
 | `is-expanded` | Check if expanded | `--window-id`, `--element-id` |
-| `scroll` | Scroll element | `--window-id`, `--element-id`, `direction`, `--amount`, `--count` |
+| `scroll` | Scroll element | `--window-id`, `--element-id`, `direction` (positional), `--amount`, `--count` |
 | `combo-select` | Select combobox item | `--window-id`, `--element-id`, `item` (positional), `--index` |
 | `combo-items` | Get combobox items | `--window-id`, `--element-id` |
 | `combo-selected-text` | Get selected text | `--window-id`, `--element-id` |

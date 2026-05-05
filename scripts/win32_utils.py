@@ -292,7 +292,8 @@ class Win32API:
 
         sent = ctypes.windll.user32.SendInput(3, ctypes.byref(inputs), ctypes.sizeof(INPUT))
         if sent != 3:
-            _logger.warning("SendClick: SendInput only sent %d of 3 inputs (error: %d)", sent, ctypes.get_last_error())
+            error_code = ctypes.get_last_error()
+            raise RuntimeError(f"SendInput failed: only sent {sent} of 3 inputs (error: {error_code})")
 
     @staticmethod
     def send_drag(x1: int, y1: int, x2: int, y2: int, duration_ms: int = 500) -> None:

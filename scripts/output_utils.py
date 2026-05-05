@@ -7,12 +7,15 @@
 
 Provides functions for formatting and outputting results,
 building control information, and generating boundary markers.
+Also provides decorators for unified command handler error handling.
 """
 
+import argparse
 import json
 import logging
 import secrets
-from typing import TYPE_CHECKING, Any, Optional
+from functools import wraps
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from models import ActionResult, Result, WindowInfo
 from win32_utils import Win32API
@@ -22,6 +25,95 @@ _logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from uia_driver import UIADriver
     from win32_driver import Win32Driver
+
+
+def _get_verb_from_args(args: argparse.Namespace) -> str:
+    """从 args 中提取 verb 名称。"""
+    for attr in (
+        "window_command", "snapshot_command", "find_command",
+        "action_command", "control_command", "uia_control_command",
+        "wait_command", "clipboard_command", "command"
+    ):
+        val = getattr(args, attr, None)
+        if val:
+            return val
+    return "unknown"
+
+
+def command_handler(
+    verb: Optional[str] = None,
+    get_window_id: Optional[Callable[[argparse.Namespace], Optional[int]]] = None,
+):
+    """统一的命令处理装饰器，自动处理错误和返回值。
+
+    Args:
+        verb: 操作名称，用于 emit_action。None 时从 args 自动提取。
+        get_window_id: 从 args 提取 window_id 的函数，用于构建错误上下文。
+
+    被装饰函数可以：
+        - 返回 None 或 0：表示成功，装饰器返回 0
+        - 返回 dict：表示成功，自动 emit_action(True, verb, dict)，返回 0
+        - 返回 int：直接返回该值（用于返回 1 表示失败）
+        - 抛出异常：装饰器自动 emit_action(False, ...) 并返回 1
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(args: argparse.Namespace) -> int:
+            try:
+                result = func(args)
+                if result is None or result == 0:
+                    return 0
+                if isinstance(result, dict):
+                    verb_name = verb or _get_verb_from_args(args)
+                    emit_action(True, verb_name, result)
+                    return 0
+                if isinstance(result, int):
+                    return result
+                return 0
+            except ValueError as e:
+                verb_name = verb or _get_verb_from_args(args)
+                error_data: dict = {"error": str(e), "error_code": "VALIDATION_ERROR"}
+                if get_window_id:
+                    wid = get_window_id(args)
+                    if wid:
+                        error_data["window_id"] = str(wid)
+                        error_data.update(build_error_context(wid))
+                emit_action(False, verb_name, error_data)
+                return 1
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                _logger.exception("Command handler failed: %s", func.__name__)
+                verb_name = verb or _get_verb_from_args(args)
+                error_data: dict = {"error": str(e), "error_code": "UNEXPECTED_ERROR"}
+                if get_window_id:
+                    wid = get_window_id(args)
+                    if wid:
+                        error_data["window_id"] = str(wid)
+                        error_data.update(build_error_context(wid))
+                emit_action(False, verb_name, error_data)
+                return 1
+        return wrapper
+    return decorator
+
+
+def require_window_id(func: Callable) -> Callable:
+    """前置检查装饰器：确保 args.window_id 存在。"""
+    @wraps(func)
+    def wrapper(args: argparse.Namespace) -> int:
+        if getattr(args, "window_id", None) is None:
+            raise ValueError("--window-id is required for this subcommand")
+        return func(args)
+    return wrapper
+
+
+def validate_window(func: Callable) -> Callable:
+    """前置检查装饰器：验证 window_id 有效。"""
+    @wraps(func)
+    def wrapper(args: argparse.Namespace) -> int:
+        window_id = getattr(args, "window_id", None)
+        if window_id is not None:
+            unwrap_result(Win32API.validate_window_id(window_id), "invalid window")
+        return func(args)
+    return wrapper
 
 
 def unwrap_result(result: Result, error_prefix: str = "operation failed") -> Any:
@@ -54,7 +146,11 @@ def generate_nonce() -> str:
 
 def wrap_with_boundary(content: str, nonce: str) -> str:
     """Wrap content with boundary markers to prevent context injection."""
-    return f"--- WINGUICTL_CONTENT nonce={nonce} ---\n{content}\n--- END_WINGUICTL_CONTENT nonce={nonce} ---"
+    return (
+        f"--- WINGUICTL_CONTENT nonce={nonce} ---\n"
+        f"{content}\n"
+        f"--- END_WINGUICTL_CONTENT nonce={nonce} ---"
+    )
 
 
 def emit_action(ok: bool, verb: str, data: Optional[dict] = None) -> None:
@@ -62,6 +158,48 @@ def emit_action(ok: bool, verb: str, data: Optional[dict] = None) -> None:
     code = "OK" if ok else "FAILED"
     message = f"{verb} executed" if ok else f"{verb} failed"
     emit(ActionResult(ok=ok, code=code, message=message, data=data or {}).to_dict())
+
+
+_control_operations: dict[str, tuple["Callable", str]] = {}
+
+
+def control_operation(name: str):
+    """Decorator: register a Win32 control operation handler.
+
+    The decorated function receives (hwnd, args) and returns an optional dict
+    of extra data to include in the emit_action output.
+
+    Usage:
+        @control_operation("click")
+        def _ctrl_click(hwnd, args):
+            Win32Driver.click(hwnd)
+            return {}
+    """
+    def decorator(func: "Callable") -> "Callable":
+        display_name = name.replace("-", "_")
+        _control_operations[name] = (func, display_name)
+        return func
+    return decorator
+
+
+def dispatch_control_operation(hwnd: int, command: str, control_info: dict, args: "argparse.Namespace") -> None:
+    """Dispatch a control command to its registered handler.
+
+    Args:
+        hwnd: Control handle
+        command: Control subcommand name (e.g. "click", "set-text")
+        control_info: Pre-built control info dict from build_control_info()
+        args: Parsed argparse namespace
+
+    Raises:
+        ValueError: If command is not registered
+    """
+    entry = _control_operations.get(command)
+    if entry is None:
+        raise ValueError(f"unknown control subcommand: {command}")
+    func, display_name = entry
+    extra_data = func(hwnd, args) or {}
+    emit_action(True, display_name, {**control_info, **extra_data})
 
 
 def build_control_info(hwnd: int) -> dict:
@@ -162,8 +300,10 @@ def format_window_tree(windows: list[WindowInfo]) -> str:
         if w.is_foreground:
             state += ' foreground="true"'
         prefix = "  " * indent
-        parts = [f'{prefix}- "{w.title}" [window_id="{w.window_id}"']
-        parts.append(f"absolute_rect=({w.bounds.x},{w.bounds.y} {w.bounds.width}x{w.bounds.height})")
+        parts = [
+            f'{prefix}- "{w.title}" [window_id="{w.window_id}"',
+            f"absolute_rect=({w.bounds.x},{w.bounds.y} {w.bounds.width}x{w.bounds.height})",
+        ]
         if w.process_id:
             parts.append(f'pid="{w.process_id}"')
         if w.process_name:
@@ -206,7 +346,10 @@ def validate_relative_coords(x: int, y: int, bounds: "Bounds") -> None:
         ValueError: If coordinates are outside window bounds
     """
     if x < 0 or x >= bounds.width or y < 0 or y >= bounds.height:
-        raise ValueError(f"coordinates ({x}, {y}) are outside window bounds (0-{bounds.width - 1}, 0-{bounds.height - 1})")
+        raise ValueError(
+            f"coordinates ({x}, {y}) are outside window bounds "
+            f"(0-{bounds.width - 1}, 0-{bounds.height - 1})"
+        )
 
 
 def build_point_context(absolute_x: int, absolute_y: int) -> dict[str, Any]:
@@ -307,7 +450,11 @@ def build_error_context(window_id: Optional[int]) -> dict:
             info = child.element_info
             name = (getattr(info, "name", "") or "").strip()
             ct = (getattr(info, "control_type", "") or "").strip()
-            aid = (getattr(info, "auto_id", None) or getattr(info, "automation_id", "") or "").strip()
+            aid = (
+                getattr(info, "auto_id", None)
+                or getattr(info, "automation_id", "")
+                or ""
+            ).strip()
             parts = []
             if name:
                 parts.append(f'"{name}"')

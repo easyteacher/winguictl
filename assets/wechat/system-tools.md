@@ -1,7 +1,5 @@
 # 系统工具与辅助功能
 
----
-
 ## 获取微信安装路径
 
 ```powershell
@@ -42,17 +40,31 @@ Write-Output $version
 ## 复制文本到剪贴板
 
 ```powershell
-# PowerShell 方式
+# PowerShell 方式（推荐，无需加载 WinForms）
 $text = "要复制的文本"
+Set-Clipboard -Value $text
+```
+
+### 复制 HTML 格式到剪贴板
+
+PowerShell 7+ 需使用 .NET 方式
+
+```powershell
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.Clipboard]::SetText($text)
+$html = "<b>粗体文本</b><br><a href='https://example.com'>链接</a>"
+[System.Windows.Forms.Clipboard]::SetText($html, [System.Windows.Forms.TextDataFormat]::Html)
 ```
 
 ## 复制文件到剪贴板
 
+#### 复制单个文件
 ```powershell
-# 需要借助 .NET 或外部工具实现 CF_HDROP 格式
-# 参考 pyweixin WinSettings.copy_files_to_clipboard 的 Python 实现
+python scripts\winguictl.py clipboard copy-files "C:\Users\Documents\report.pdf"
+```
+
+#### 复制多个文件
+```powershell
+python scripts\winguictl.py clipboard copy-files "C:\file1.txt" "C:\file2.txt" "D:\images\photo.png"
 ```
 
 ## 设置系统音量

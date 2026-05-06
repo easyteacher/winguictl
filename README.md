@@ -55,3 +55,7 @@ python scripts\winguictl.py screenshot --window-id <id> --output shot.png
 ## License
 
 MIT
+
+## Download History
+
+[![Download History](https://skill-history.com/chart/easyteacher/winguictl.svg)](https://skill-history.com/easyteacher/winguictl)

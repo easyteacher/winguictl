@@ -79,10 +79,10 @@ python scripts\winguictl.py snapshot --window-id <id> uia
 
 | Command | Mechanism | Best For |
 |---------|-----------|----------|
-| `action click --element-id` | Mouse simulation at center | **WeChat, custom controls** |
 | `uia-control click` | UIA InvokePattern | Standard Windows controls, WinUI3 |
+| `action click --element-id` | Mouse simulation at center | **WeChat, custom controls, SplitButton, ToolBar** |
 
-**Recommendation**: Try `uia-control click` first. If no effect, use `action click --element-id`.
+**Recommendation**: Try `uia-control click` first. If it fails with errors like `'UIAWrapper' object has no attribute 'click'` or returns `ok: false`, immediately fall back to `action click --element-id`.
 
 ### Common Scenarios
 
@@ -92,11 +92,14 @@ python scripts\winguictl.py snapshot --window-id <id> uia
 | UIA element with runtime_id | `uia-control --element-id "42-3155764" click` |
 | Text-based element | `find ocr "text"` → `action click --element-id` |
 | Qt applications | Add `--skip-actions --skip-state` for faster UIA |
+| SplitButton / ToolBar (save dialog toolbar) | `action click --element-id` (NOT `uia-control`) |
+| Set text in edit/combo box | `uia-control set-text "value" --verify-change` |
 
 ## Key Rules
 
 - **Re-snapshot after actions**: UI state changes after clicks/typing
 - **Use `--dry-run`**: Preview operations before execution
+- **Always prefer control/uia-control over action**: More reliable for standard Windows controls, WinUI3, and custom controls that implement UIA interfaces.
 - **Prefer runtime_id**: More reliable than automation_id
 - **Report window_id**: Always include exact window identifier in results
 - **Coordinate system**: `relative_rect` = window-relative; `absolute_rect` = screen-absolute
@@ -104,6 +107,7 @@ python scripts\winguictl.py snapshot --window-id <id> uia
 ## Application Guides
 
 - [WeChat Automation](assets/wechat/wechat.md) — WeChat 4.1.6+ messaging, contacts, files, calls, Moments
+- [Standard File Dialog](assets/standard-file-dialog/standard-file-dialog.md) — Windows "打开/另存为" dialog automation
 
 ## References
 
